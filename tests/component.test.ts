@@ -513,7 +513,7 @@ describe("handleInput — multi-question tab navigation", () => {
     c.handleInput(INPUT.right); // Q2
     c.handleInput(INPUT.right); // Submit
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("Ready to submit") || l.includes("Unanswered"))).toBe(true);
+    expect(lines.some((l) => l.includes("Press Enter to submit") || l.includes("Still needed"))).toBe(true);
   });
 
   it("Shift+Tab retreats from Q2 to Q1", () => {
@@ -528,7 +528,7 @@ describe("handleInput — multi-question tab navigation", () => {
     const c = make([singleSelect, multiSelectQ]);
     c.handleInput(INPUT.left);
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("Ready to submit") || l.includes("Unanswered"))).toBe(true);
+    expect(lines.some((l) => l.includes("Press Enter to submit") || l.includes("Still needed"))).toBe(true);
   });
 
   it("Tab on Submit tab wraps to Q1", () => {
@@ -654,7 +654,7 @@ describe("full round-trip", () => {
     // Should now be on Q2 (Features), not Submit
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Which features"))).toBe(true);
-    expect(lines.some((l) => l.includes("Ready to submit") || l.includes("Unanswered"))).toBe(false);
+    expect(lines.some((l) => l.includes("Press Enter to submit") || l.includes("Still needed"))).toBe(false);
   });
 });
 
@@ -756,6 +756,45 @@ describe("auto-confirm on → navigation", () => {
     c.handleInput(INPUT.enter); // confirm Q2
     c.handleInput(INPUT.right); // go to Submit
     c.handleInput(INPUT.enter); // try to submit — Q1 unconfirmed, should not resolve
+    expect(resolved).toBeNull();
+  });
+});
+
+// ── multi-select: un-confirm when all answers removed ────────────────────────
+
+describe("multi-select: un-confirm when all answers removed", () => {
+  it("deselecting all checkboxes resets confirmed — Submit blocks", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    // Confirm Q1 with Auth
+    c.handleInput(INPUT.space); // select Auth
+    c.handleInput(INPUT.enter); // confirm, advance to Q2
+    c.handleInput(INPUT.left);  // back to Q1
+    // Deselect Auth — nothing left
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.right); // to Submit (Q2 unconfirmed too, but test the Q1 un-confirm)
+    c.handleInput(INPUT.enter); // try to submit — should be blocked
+    expect(resolved).toBeNull();
+  });
+
+  it("clearing free-text with no checkboxes resets confirmed — Submit blocks", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    // Confirm Q1 with free-text only
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // open editor
+    "hello".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // save
+    c.handleInput(INPUT.up);
+    c.handleInput(INPUT.enter); // confirm, advance to Q2
+    c.handleInput(INPUT.left);  // back to Q1
+    // Clear free-text
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.space); // re-open editor (pre-filled)
+    for (let i = 0; i < 10; i++) c.handleInput("\x7f"); // backspace to clear
+    c.handleInput(INPUT.enter); // Enter empty — clears freeTextValue, un-confirms
+    c.handleInput(INPUT.right); // to Submit
+    c.handleInput(INPUT.enter); // try to submit — blocked
     expect(resolved).toBeNull();
   });
 });

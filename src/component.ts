@@ -301,8 +301,7 @@ export class AskUserQuestionComponent implements Component {
 
   private renderSubmitTab(width: number, add: (s: string) => void): void {
     const t = this.theme;
-    add(t.fg("accent", t.bold(" Ready to submit")));
-    add("");
+    const allDone = this.allConfirmed();
 
     for (const q of this.questions) {
       const state = this.states[this.questions.indexOf(q)];
@@ -313,19 +312,19 @@ export class AskUserQuestionComponent implements Component {
             t.fg("text", answer),
         );
       } else {
-        add(t.fg("warning", ` ${truncateToWidth(q.header, 12)}: (unanswered)`));
+        add(t.fg("dim", ` ${truncateToWidth(q.header, 12)}: `) + t.fg("warning", "—"));
       }
     }
 
     add("");
-    if (this.allConfirmed()) {
+    if (allDone) {
       add(t.fg("success", " Press Enter to submit"));
     } else {
       const missing = this.questions
         .filter((_, i) => !this.states[i].confirmed)
         .map((q) => truncateToWidth(q.header, 12))
         .join(", ");
-      add(t.fg("warning", ` Unanswered: ${missing}`));
+      add(t.fg("warning", ` Still needed: ${missing}`));
     }
     add("");
     add(t.fg("dim", " ←→ switch tabs · Esc cancel"));
@@ -362,6 +361,10 @@ export class AskUserQuestionComponent implements Component {
       state.selectedIndices.delete(index);
     } else {
       state.selectedIndices.add(index);
+    }
+    // If all answers removed, un-confirm so Submit tab blocks correctly
+    if (state.selectedIndices.size === 0 && state.freeTextValue === null) {
+      state.confirmed = false;
     }
     this.invalidate();
     this.tui.requestRender();
@@ -520,6 +523,11 @@ export class AskUserQuestionComponent implements Component {
         } else {
           // Empty text — clear any previously saved free-text answer
           state.freeTextValue = null;
+          // If nothing left selected either, un-confirm
+          const q = this.questions[this.activeTab];
+          if (q.multiSelect && state.selectedIndices.size === 0) {
+            state.confirmed = false;
+          }
           this.exitEditMode(false);
           this.tui.requestRender();
         }
