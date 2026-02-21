@@ -3,7 +3,14 @@ import { Key, matchesKey } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
 import { AskUserQuestionComponent, type TUILike } from "../src/component.ts";
-import type { Question, Result } from "../src/schema.ts";
+import {
+  InputSchema,
+  OptionSchema,
+  type Question,
+  QuestionSchema,
+  type Result,
+  ResultSchema,
+} from "../src/schema.ts";
 
 // ── Smoke test ────────────────────────────────────────────────────────────────
 
@@ -1470,5 +1477,85 @@ describe("fuzz — tab view", () => {
     for (let i = 0; i < 4; i++) c.handleInput(INPUT.right);
     const submitLines = c.render(80);
     expect(submitLines.some((l) => l.includes("Still needed"))).toBe(true);
+  });
+});
+
+// ── Coverage: targeted gap-fill tests ────────────────────────────────────────
+
+describe("coverage — schema.ts", () => {
+  it("OptionSchema is a valid TypeBox object schema", () => {
+    expect(OptionSchema).toBeDefined();
+    expect(OptionSchema.type).toBe("object");
+    expect(OptionSchema.properties.label).toBeDefined();
+    expect(OptionSchema.properties.description).toBeDefined();
+  });
+
+  it("QuestionSchema has correct structure", () => {
+    expect(QuestionSchema.properties.question).toBeDefined();
+    expect(QuestionSchema.properties.header).toBeDefined();
+    expect(QuestionSchema.properties.options).toBeDefined();
+    expect(QuestionSchema.properties.multiSelect).toBeDefined();
+    expect(QuestionSchema.properties.options.minItems).toBe(2);
+    expect(QuestionSchema.properties.options.maxItems).toBe(4);
+  });
+
+  it("InputSchema constrains questions to 1–4", () => {
+    expect(InputSchema.properties.questions.minItems).toBe(1);
+    expect(InputSchema.properties.questions.maxItems).toBe(4);
+  });
+
+  it("ResultSchema has questions, answers, cancelled", () => {
+    expect(ResultSchema.properties.questions).toBeDefined();
+    expect(ResultSchema.properties.answers).toBeDefined();
+    expect(ResultSchema.properties.cancelled).toBeDefined();
+    expect(ResultSchema.properties.cancelled.type).toBe("boolean");
+  });
+});
+
+describe("coverage — component.ts gaps", () => {
+  it("render returns [] for empty questions array", () => {
+    const c = new AskUserQuestionComponent(
+      [],
+      mockTui as TUILike,
+      mockTheme as unknown as Theme,
+      () => {},
+    );
+    expect(c.render(80)).toEqual([]);
+  });
+
+  it("Enter on 'Type something...' with no freeTextValue is a no-op", () => {
+    let called = false;
+    const c = make([singleSelect], () => {
+      called = true;
+    });
+    // Navigate to Type something... and press Enter (no freeTextValue saved)
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.enter); // no freeTextValue → no-op
+    expect(called).toBe(false);
+    // Should not be in edit mode either
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("✎"))).toBe(false);
+  });
+
+  it("handleInput after resolved is a no-op — no crash, no extra calls", () => {
+    let count = 0;
+    const c = make([singleSelect], () => {
+      count++;
+    });
+    c.handleInput(INPUT.enter); // resolve
+    // All subsequent inputs are no-ops
+    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.escape);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space);
+    expect(count).toBe(1);
+  });
+
+  it("editorTheme callbacks are exercised via editor render in edit mode", () => {
+    // Exercises lines 86-90 (borderColor + selectList callbacks)
+    const c = make([singleSelect]);
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // enter edit mode → editor.render called in renderQuestionBody
+    expect(() => c.render(80)).not.toThrow();
   });
 });
