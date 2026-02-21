@@ -311,10 +311,217 @@ export class AskUserQuestionComponent implements Component {
     return q.options[state.cursorIndex]?.label ?? null;
   }
 
-  // ── handleInput() ────────────────────────────────────────────────────────────
-  // Implemented in TODO-f0705cca
+  // ── Private navigation helpers ───────────────────────────────────────────────
 
-  handleInput(_data: string): void {
-    // stub — implemented next
+  private moveCursor(delta: -1 | 1): void {
+    const q = this.questions[this.activeTab];
+    const state = this.states[this.activeTab];
+    const max = this.allOptions(q).length - 1;
+    state.cursorIndex = Math.max(0, Math.min(max, state.cursorIndex + delta));
+    this.invalidate();
+    this.tui.requestRender();
+  }
+
+  private toggleSelected(index: number): void {
+    const state = this.states[this.activeTab];
+    if (state.selectedIndices.has(index)) {
+      state.selectedIndices.delete(index);
+    } else {
+      state.selectedIndices.add(index);
+    }
+    this.invalidate();
+    this.tui.requestRender();
+  }
+
+  private enterEditMode(): void {
+    const state = this.states[this.activeTab];
+    state.inEditMode = true;
+    // Restore previous free-text value if any
+    if (state.freeTextValue !== null) {
+      this.editor.setText(state.freeTextValue);
+    } else {
+      this.editor.setText("");
+    }
+    this.invalidate();
+    this.tui.requestRender();
+  }
+
+  private exitEditMode(save: boolean): void {
+    const state = this.states[this.activeTab];
+    if (save) {
+      state.freeTextValue = this.editor.getText().trim();
+    } else {
+      // Discard typed text — clear freeTextValue only if it was never confirmed
+      // (if confirmed, freeTextValue holds the answer — don't touch it)
+      if (!state.confirmed) {
+        state.freeTextValue = null;
+      }
+    }
+    this.editor.setText("");
+    state.inEditMode = false;
+    this.invalidate();
+  }
+
+  private confirmAndAdvance(): void {
+    const state = this.states[this.activeTab];
+    state.confirmed = true;
+    this.advance();
+  }
+
+  private advance(): void {
+    if (this.isSingle) {
+      this.submit();
+      return;
+    }
+    if (this.activeTab < this.questions.length - 1) {
+      this.activeTab++;
+    } else {
+      this.activeTab = this.questions.length; // Submit tab
+    }
+    this.invalidate();
+    this.tui.requestRender();
+  }
+
+  private submit(): void {
+    this.done(this.buildResult());
+  }
+
+  private cancel(): void {
+    this.done(null);
+  }
+
+  private buildResult(): Result {
+    const answers: Record<string, string> = {};
+    for (let i = 0; i < this.questions.length; i++) {
+      const q = this.questions[i];
+      const s = this.states[i];
+      if (!s.confirmed) continue;
+      if (s.freeTextValue !== null) {
+        answers[q.question] = s.freeTextValue;
+      } else if (q.multiSelect) {
+        const labels = [...s.selectedIndices]
+          .sort((a, b) => a - b)
+          .map((idx) => q.options[idx].label);
+        answers[q.question] = labels.join(", ");
+      } else {
+        answers[q.question] = q.options[s.cursorIndex].label;
+      }
+    }
+    return { questions: this.questions, answers, cancelled: false };
+  }
+
+  // ── handleInput() ────────────────────────────────────────────────────────────
+
+  handleInput(data: string): void {
+    const state = this.states[this.activeTab];
+
+    // ── Edit mode: route to inline editor ──────────────────────────────────────
+    if (state.inEditMode) {
+      if (matchesKey(data, Key.escape)) {
+        this.exitEditMode(false);
+        this.tui.requestRender();
+        return;
+      }
+      if (matchesKey(data, Key.enter)) {
+        const text = this.editor.getText().trim();
+        if (text) {
+          this.exitEditMode(true);
+          this.confirmAndAdvance();
+        } else {
+          this.exitEditMode(false);
+          this.tui.requestRender();
+        }
+        return;
+      }
+      this.editor.handleInput(data);
+      this.invalidate();
+      this.tui.requestRender();
+      return;
+    }
+
+    // ── Submit tab ─────────────────────────────────────────────────────────────
+    if (!this.isSingle && this.activeTab === this.questions.length) {
+      if (matchesKey(data, Key.enter)) {
+        if (this.allConfirmed()) this.submit();
+        return;
+      }
+      if (matchesKey(data, Key.escape)) {
+        this.cancel();
+        return;
+      }
+      if (matchesKey(data, Key.tab)) {
+        this.activeTab = 0;
+        this.invalidate();
+        this.tui.requestRender();
+        return;
+      }
+      if (matchesKey(data, Key.shift("tab"))) {
+        this.activeTab = this.questions.length - 1;
+        this.invalidate();
+        this.tui.requestRender();
+        return;
+      }
+      return;
+    }
+
+    // ── Question tab ───────────────────────────────────────────────────────────
+    if (matchesKey(data, Key.escape)) {
+      this.cancel();
+      return;
+    }
+
+    if (matchesKey(data, Key.tab)) {
+      this.activeTab = (this.activeTab + 1) % this.totalTabs;
+      this.invalidate();
+      this.tui.requestRender();
+      return;
+    }
+
+    if (matchesKey(data, Key.shift("tab"))) {
+      this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
+      this.invalidate();
+      this.tui.requestRender();
+      return;
+    }
+
+    if (matchesKey(data, Key.up)) {
+      this.moveCursor(-1);
+      return;
+    }
+
+    if (matchesKey(data, Key.down)) {
+      this.moveCursor(1);
+      return;
+    }
+
+    const q = this.questions[this.activeTab];
+    const opts = this.allOptions(q);
+    const onOther = state.cursorIndex === opts.length - 1;
+
+    // "Type something..." — Enter or Space enters edit mode
+    if (onOther) {
+      if (matchesKey(data, Key.enter) || matchesKey(data, Key.space)) {
+        this.enterEditMode();
+        return;
+      }
+    }
+
+    if (q.multiSelect) {
+      if (matchesKey(data, Key.space) && !onOther) {
+        this.toggleSelected(state.cursorIndex);
+        return;
+      }
+      if (matchesKey(data, Key.enter) && !onOther) {
+        if (state.selectedIndices.size > 0) {
+          this.confirmAndAdvance();
+        }
+        return;
+      }
+    } else {
+      if (matchesKey(data, Key.enter) && !onOther) {
+        this.confirmAndAdvance();
+        return;
+      }
+    }
   }
 }
