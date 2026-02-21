@@ -127,9 +127,9 @@ describe("render — single question", () => {
     expect(lines.some((l) => l.includes("DuckDB"))).toBe(true);
   });
 
-  it("renders Type something... option", () => {
+  it("renders Type your own answer... option", () => {
     const lines = make([singleSelect]).render(80);
-    expect(lines.some((l) => l.includes("Type something..."))).toBe(true);
+    expect(lines.some((l) => l.includes("Type your own answer..."))).toBe(true);
   });
 
   it("renders option descriptions", () => {
@@ -164,7 +164,7 @@ describe("render — single question", () => {
     const lines = make([twoOptionsQ]).render(80);
     expect(lines.some((l) => l.includes("Yes"))).toBe(true);
     expect(lines.some((l) => l.includes("No"))).toBe(true);
-    expect(lines.some((l) => l.includes("Type something..."))).toBe(true);
+    expect(lines.some((l) => l.includes("Type your own answer..."))).toBe(true);
   });
 });
 
@@ -252,14 +252,14 @@ describe("handleInput — cursor navigation", () => {
     expect(lines.some((l) => l.match(/^>\s+.*PostgreSQL/))).toBe(true);
   });
 
-  it("clamps cursor at last option (Type something...) on repeated ↓", () => {
+  it("clamps cursor at last option (Type your own answer...) on repeated ↓", () => {
     const c = make([singleSelect]);
     for (let i = 0; i < 20; i++) c.handleInput(INPUT.down);
     const lines = c.render(80);
-    expect(lines.some((l) => l.match(/^>.*Type something/))).toBe(true);
+    expect(lines.some((l) => l.match(/^>.*Type your own answer/))).toBe(true);
   });
 
-  it("moves back up from Type something...", () => {
+  it("moves back up from Type your own answer...", () => {
     const c = make([singleSelect]);
     for (let i = 0; i < 20; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.up);
@@ -483,7 +483,7 @@ describe("handleInput — multi-select", () => {
 // ── handleInput — free-text mode ──────────────────────────────────────────────
 
 describe("handleInput — free-text mode", () => {
-  it("Space on 'Type something...' enters edit mode — render shows ✎", () => {
+  it("Space on 'Type your own answer...' enters edit mode — render shows ✎", () => {
     const c = make([singleSelect]);
     // Navigate to last option
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
@@ -492,7 +492,7 @@ describe("handleInput — free-text mode", () => {
     expect(lines.some((l) => l.includes("✎"))).toBe(true);
   });
 
-  it("Space on 'Type something...' also enters edit mode", () => {
+  it("Space on 'Type your own answer...' also enters edit mode", () => {
     const c = make([singleSelect]);
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space);
@@ -529,12 +529,12 @@ describe("handleInput — free-text mode", () => {
     c.handleInput(INPUT.enter); // save "hello", back to options (single-select: auto-confirms + advances)
     // Navigate back, re-open editor, clear text
     c.handleInput(INPUT.left);
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // re-open editor (pre-filled with "hello")
     // Clear editor by deleting — simulate backspace 5 times
     for (let i = 0; i < 5; i++) c.handleInput("\x7f"); // backspace
     c.handleInput(INPUT.enter); // Enter with empty → clears freeTextValue
-    // Preview below "Type something..." should be gone
+    // Preview below "Type your own answer..." should be gone
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("hello"))).toBe(false);
   });
@@ -768,10 +768,10 @@ describe("multi-select + free-text combined", () => {
     c.handleInput(INPUT.space); // select Auth (index 0)
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
-    c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "mytext") c.handleInput(ch);
-    c.handleInput(INPUT.enter); // save free-text, return to options (cursor still on Type something...)
+    c.handleInput(INPUT.enter); // save free-text, return to options (cursor still on Type your own answer...)
     // Move cursor to a real option, then confirm
     c.handleInput(INPUT.up); // cursor on Export (index 2)
     c.handleInput(INPUT.enter); // confirm (Auth selected + free-text saved)
@@ -780,16 +780,16 @@ describe("multi-select + free-text combined", () => {
     );
   });
 
-  it("Enter on Type something... with saved free-text confirms immediately", () => {
+  it("Enter on Type your own answer... with saved free-text confirms immediately", () => {
     let resolved: Result | null = null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "hello") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text, back to options
-    // cursor still on Type something... — Enter should confirm now
+    // cursor still on Type your own answer... — Enter should confirm now
     c.handleInput(INPUT.enter);
     expect(resolved).not.toBeNull();
     expect(resolved?.answers["Which features should we implement?"]).toBe(
@@ -802,11 +802,11 @@ describe("multi-select + free-text combined", () => {
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "onlytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text, return to options
-    // Move cursor off "Type something..." to a regular option, then confirm
+    // Move cursor off "Type your own answer..." to a regular option, then confirm
     c.handleInput(INPUT.up);
     c.handleInput(INPUT.enter); // confirm (freeTextValue set, no checkboxes)
     expect(resolved?.answers["Which features should we implement?"]).toBe(
@@ -820,10 +820,10 @@ describe("multi-select + free-text combined", () => {
     c.handleInput(INPUT.space); // select Auth
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
-    c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "extra") c.handleInput(ch);
-    c.handleInput(INPUT.enter); // save free-text, return to options (cursor on Type something...)
+    c.handleInput(INPUT.enter); // save free-text, return to options (cursor on Type your own answer...)
     c.handleInput(INPUT.up); // move cursor to a real option
     c.handleInput(INPUT.enter); // confirm Q1 (Auth + extra), advance to Q2
     // Answer Q2 (single-select)
@@ -914,7 +914,7 @@ describe("multi-select: un-confirm when all answers removed", () => {
     c.handleInput(INPUT.enter); // confirm, advance to Q2
     c.handleInput(INPUT.left); // back to Q1
     // Clear free-text
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // re-open editor (pre-filled)
     for (let i = 0; i < 10; i++) c.handleInput("\x7f"); // backspace to clear
     c.handleInput(INPUT.enter); // Enter empty — clears freeTextValue, un-confirms
@@ -933,7 +933,7 @@ describe("single-select: free-text then pick regular option", () => {
       resolved = r;
     });
     // Type free-text first
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // confirm free-text — resolves for single question
@@ -961,7 +961,7 @@ describe("single-select: free-text then pick regular option", () => {
       true,
     );
     // Type free-text
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text — clears selectedIndex, auto-advances to Q2
@@ -971,9 +971,9 @@ describe("single-select: free-text then pick regular option", () => {
     const pgLines = lines.filter((l) => l.includes("PostgreSQL"));
     expect(pgLines.length).toBeGreaterThan(0);
     for (const l of pgLines) expect(l).not.toMatch(/✓/);
-    // ✓ should be on the "Type something..." row, preview text on the line below
+    // ✓ should be on the "Type your own answer..." row, preview text on the line below
     expect(
-      lines.some((l) => l.includes("✓") && l.includes("Type something")),
+      lines.some((l) => l.includes("✓") && l.includes("Type your own answer")),
     ).toBe(true);
     expect(lines.some((l) => l.includes("mytext"))).toBe(true);
   });
@@ -985,7 +985,7 @@ describe("single-select: free-text then pick regular option", () => {
       resolved = r;
     });
     // Type free-text on Q1
-    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // confirm free-text, advance to Q2
@@ -1064,7 +1064,7 @@ describe("edge cases", () => {
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
-    // Go to "Type something...", enter edit mode, type, then Esc
+    // Go to "Type your own answer...", enter edit mode, type, then Esc
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
     for (const ch of "hello") c.handleInput(ch);
@@ -1272,11 +1272,11 @@ describe("fuzz — tab view", () => {
     // add free-text
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
-    c.handleInput(INPUT.down); // Type something...
+    c.handleInput(INPUT.down); // Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "MongoDB") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text
-    c.handleInput(INPUT.up); // move cursor off Type something...
+    c.handleInput(INPUT.up); // move cursor off Type your own answer...
     c.handleInput(INPUT.enter); // confirm Q2 → Q3
     // Navigate back to Q2 and verify state preserved
     c.handleInput(INPUT.left); // back to Q2
@@ -1301,12 +1301,12 @@ describe("fuzz — tab view", () => {
     // Add free-text to Q1
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
-    c.handleInput(INPUT.down); // Type something...
+    c.handleInput(INPUT.down); // Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "Rust") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save + auto-confirm → Q2
-    c.handleInput(INPUT.left); // back to Q1 — cursor still on Type something... (index 3)
-    // Change to Bun (index 2, one up from Type something...)
+    c.handleInput(INPUT.left); // back to Q1 — cursor still on Type your own answer... (index 3)
+    // Change to Bun (index 2, one up from Type your own answer...)
     c.handleInput(INPUT.up); // cursor to Bun (index 2)
     c.handleInput(INPUT.enter); // select Bun → Q2
     // Complete
@@ -1374,7 +1374,7 @@ describe("fuzz — tab view", () => {
     c.handleInput(INPUT.right); // Q2
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
-    c.handleInput(INPUT.down); // Type something...
+    c.handleInput(INPUT.down); // Type your own answer...
     c.handleInput(INPUT.space); // open editor
     for (const ch of "nope") c.handleInput(ch);
     c.handleInput(INPUT.escape); // discard — freeTextValue unchanged (was null)
@@ -1523,12 +1523,12 @@ describe("coverage — component.ts gaps", () => {
     expect(c.render(80)).toEqual([]);
   });
 
-  it("Enter on 'Type something...' with no freeTextValue is a no-op", () => {
+  it("Enter on 'Type your own answer...' with no freeTextValue is a no-op", () => {
     let called = false;
     const c = make([singleSelect], () => {
       called = true;
     });
-    // Navigate to Type something... and press Enter (no freeTextValue saved)
+    // Navigate to Type your own answer... and press Enter (no freeTextValue saved)
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.enter); // no freeTextValue → no-op
     expect(called).toBe(false);
