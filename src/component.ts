@@ -433,13 +433,13 @@ export class AskUserQuestionComponent implements Component {
         this.cancel();
         return;
       }
-      if (matchesKey(data, Key.tab)) {
+      if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
         this.activeTab = 0;
         this.invalidate();
         this.tui.requestRender();
         return;
       }
-      if (matchesKey(data, Key.shift("tab"))) {
+      if (matchesKey(data, Key.shift("tab")) || matchesKey(data, Key.left)) {
         this.activeTab = this.questions.length - 1;
         this.invalidate();
         this.tui.requestRender();
