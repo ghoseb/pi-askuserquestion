@@ -7,6 +7,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "coverage": "vitest run --coverage.enabled --coverage.provider=istanbul",
     "check": "pnpm check:biome && pnpm check:dupes && pnpm check:knip",
     "check:biome": "biome check --error-on-warnings src/ tests/",
     "check:dupes": "jscpd src/ --min-lines 8 --min-tokens 50 --reporters console",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-istanbul": "3.2.4",
     "jscpd": "^4.0.8",
     "knip": "^5.85.0",
     "vitest": "^3.0.0"
