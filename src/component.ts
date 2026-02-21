@@ -33,6 +33,13 @@ interface QuestionState {
   inEditMode: boolean;
 }
 
+// Column offsets for indenting descriptions and free-text previews,
+// kept in sync with the actual rendered prefix widths:
+//   single-select: prefix(1) + ' '(1) + check(1) + ' '(1) = 4 → indent = 5 (+ leading space)
+//   multi-select:  prefix(1) + ' '(1) + box(3)   + ' '(1) = 6 → indent = 7 (+ leading space)
+const SINGLE_INDENT = "     ";  // 5 spaces
+const MULTI_INDENT  = "       "; // 7 spaces
+
 type DisplayOption = Option & { isOther?: true };
 
 // ── AskUserQuestionComponent ──────────────────────────────────────────────────
@@ -119,6 +126,37 @@ export class AskUserQuestionComponent implements Component {
     this.cachedLines = undefined;
   }
 
+  // Invalidate and request a re-render — used after every state mutation.
+  private refresh(): void {
+    this.invalidate();
+    this.tui.requestRender();
+  }
+
+  // ── Canonical answer resolver ───────────────────────────────────────────────
+  // Single source of truth for (question, state) → answer string.
+  // Used by renderSubmitTab, buildResult, and autoConfirmIfAnswered.
+  private resolveAnswer(q: Question, state: QuestionState): string | null {
+    if (!state.confirmed) return null;
+    if (q.multiSelect) {
+      const labels = [...state.selectedIndices]
+        .sort((a, b) => a - b)
+        .map((i) => q.options[i].label);
+      if (state.freeTextValue !== null) labels.push(state.freeTextValue);
+      return labels.length > 0 ? labels.join(", ") : null;
+    }
+    if (state.freeTextValue !== null) return state.freeTextValue;
+    if (state.selectedIndex !== null) return q.options[state.selectedIndex].label;
+    return null;
+  }
+
+  // ── Tab styling helper ──────────────────────────────────────────────────────
+  private styleTab(label: string, isActive: boolean, isReady: boolean): string {
+    const t = this.theme;
+    if (isActive) return t.bg("selectedBg", t.fg("text", label));
+    if (isReady)  return t.fg("success", label);
+    return t.fg("dim", label);
+  }
+
   // ── render() ────────────────────────────────────────────────────────────────
 
   render(width: number): string[] {
@@ -134,26 +172,20 @@ export class AskUserQuestionComponent implements Component {
     const lines: string[] = [];
     const add = (s: string) => lines.push(truncateToWidth(s, width));
 
-    // ── Top separator ──
     add(t.fg("accent", "─".repeat(width)));
 
-    // ── Tab bar (multi-question only) ──
     if (!this.isSingle) {
       this.renderTabBar(width, add);
       lines.push("");
     }
 
-    // ── Question body or Submit tab ──
     const q = this.questions[this.activeTab];
     if (!q) {
-      // activeTab is on Submit tab (or out of bounds) — render Submit view
       this.renderSubmitTab(width, add);
     } else {
-      const state = this.states[this.activeTab];
-      this.renderQuestionBody(q, state, width, add);
+      this.renderQuestionBody(q, this.states[this.activeTab], width, add);
     }
 
-    // ── Bottom separator ──
     add(t.fg("accent", "─".repeat(width)));
 
     this.cachedWidth = width;
@@ -162,40 +194,22 @@ export class AskUserQuestionComponent implements Component {
   }
 
   private renderTabBar(width: number, add: (s: string) => void): void {
-    const t = this.theme;
     const parts: string[] = [" "];
 
     for (let i = 0; i < this.questions.length; i++) {
       const q = this.questions[i];
       const s = this.states[i];
       const isActive = i === this.activeTab;
-      // Truncate header to 12 chars
       const header = truncateToWidth(q.header, 12);
-      const label = ` ${header} `;
-
-      let styled: string;
-      if (isActive) {
-        styled = t.bg("selectedBg", t.fg("text", label));
-      } else if (s.confirmed) {
-        styled = t.fg("success", ` ■${header} `);
-      } else {
-        styled = t.fg("muted", `  ${header} `);
-      }
-      parts.push(styled);
+      // Active tab uses plain label; confirmed gets ■ prefix; unconfirmed gets blank prefix
+      // (blank = same width as ■ — no layout shift)
+      const label = isActive ? ` ${header} ` : (s.confirmed ? ` ■${header} ` : `  ${header} `);
+      parts.push(this.styleTab(label, isActive, s.confirmed));
     }
 
-    // Submit tab
     const isSubmitActive = this.activeTab === this.questions.length;
     const submitLabel = " ✓ Submit ";
-    let submitStyled: string;
-    if (isSubmitActive) {
-      submitStyled = t.bg("selectedBg", t.fg("text", submitLabel));
-    } else if (this.allConfirmed()) {
-      submitStyled = t.fg("success", submitLabel);
-    } else {
-      submitStyled = t.fg("dim", submitLabel);
-    }
-    parts.push(submitStyled);
+    parts.push(this.styleTab(submitLabel, isSubmitActive, this.allConfirmed()));
 
     add(parts.join(""));
   }
@@ -208,13 +222,11 @@ export class AskUserQuestionComponent implements Component {
   ): void {
     const t = this.theme;
     const opts = this.allOptions(q);
+    const indent = q.multiSelect ? MULTI_INDENT : SINGLE_INDENT;
 
-    // Question text (word-wrapped)
-    lines_block: {
-      const wrapped = wrapTextWithAnsi(t.fg("text", ` ${q.question}`), width - 2);
-      for (const line of wrapped) {
-        add(line);
-      }
+    // Question text
+    for (const line of wrapTextWithAnsi(t.fg("text", ` ${q.question}`), width - 2)) {
+      add(line);
     }
     add("");
 
@@ -224,100 +236,76 @@ export class AskUserQuestionComponent implements Component {
       const isSelected = i === state.cursorIndex;
       const isOther = opt.isOther === true;
       const prefix = isSelected ? t.fg("accent", ">") : " ";
+      const labelColor = isSelected ? "accent" : (isOther ? "muted" : "text");
 
-      if (q.multiSelect && !isOther) {
-        // Checkbox style
-        const checked = state.selectedIndices.has(i);
-        const box = checked ? t.fg("accent", "[✓]") : t.fg("dim", "[ ]");
-        const labelColor = isSelected ? "accent" : "text";
-        add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
-      } else if (isOther) {
-        // "Type something..." row — check/box matches sibling row format
+      if (isOther) {
+        // "Type something..." — check/box indicator matches sibling rows
         const hasFreeText = state.freeTextValue !== null && !state.inEditMode;
         const suffix = state.inEditMode ? t.fg("accent", " ✎") : "";
-        const labelColor = isSelected ? "accent" : "muted";
         if (q.multiSelect) {
-          // Match multi-select box format: prefix + ' ' + box(3) + ' ' + label
           const box = hasFreeText ? t.fg("success", "[✓]") : t.fg("dim", "[ ]");
           add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
         } else {
-          // Match single-select format: prefix + ' ' + check(1) + ' ' + label
           const check = hasFreeText ? t.fg("success", "✓") : " ";
           add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
         }
-        // Preview of saved text below, no ✓ here
         if (hasFreeText) {
-          const indent = q.multiSelect ? "       " : "     ";
           const preview = truncateToWidth(state.freeTextValue!, width - indent.length);
           add(`${indent}${t.fg("dim", `"${preview}"`)}`);
         }
+      } else if (q.multiSelect) {
+        const box = state.selectedIndices.has(i) ? t.fg("accent", "[✓]") : t.fg("dim", "[ ]");
+        add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
       } else {
-        // Single-select — show ✓ on the confirmed selection
-        const isConfirmedChoice = state.selectedIndex === i;
-        const check = isConfirmedChoice ? t.fg("success", "✓") : " ";
-        const labelColor = isSelected ? "accent" : "text";
+        const check = state.selectedIndex === i ? t.fg("success", "✓") : " ";
         add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
       }
 
-      // Description (if present, not for "Type something...")
       if (!isOther && opt.description) {
-        const indent = q.multiSelect ? "       " : "     ";
-        const wrapped = wrapTextWithAnsi(t.fg("muted", opt.description), width - indent.length);
-        for (const line of wrapped) {
+        for (const line of wrapTextWithAnsi(t.fg("muted", opt.description), width - indent.length)) {
           add(`${indent}${line}`);
         }
       }
     }
 
-    // Inline editor (when in edit mode)
+    // Inline editor
     if (state.inEditMode) {
       add("");
       add(t.fg("muted", " Your answer:"));
-      const editorLines = this.editor.render(width - 4);
-      for (const line of editorLines) {
+      for (const line of this.editor.render(width - 4)) {
         add(` ${line}`);
       }
     }
 
     add("");
 
-    // Footer help — context-sensitive based on cursor position
+    // Context-sensitive footer
     if (state.inEditMode) {
       add(t.fg("dim", " Enter submit · Esc back"));
     } else {
       const onOther = state.cursorIndex === opts.length - 1;
       const tabHint = this.isSingle ? "" : " · ←→ switch tabs";
-      let actionHint: string;
-      if (onOther) {
-        actionHint = "Space/Tab open editor";
-      } else if (q.multiSelect) {
-        actionHint = "Space toggle · Enter confirm";
-      } else {
-        actionHint = "Enter select";
-      }
+      const actionHint = onOther
+        ? "Space/Tab open editor"
+        : q.multiSelect
+          ? "Space toggle · Enter confirm"
+          : "Enter select";
       add(t.fg("dim", ` ↑↓ navigate · ${actionHint}${tabHint} · Esc cancel`));
     }
   }
 
   private renderSubmitTab(width: number, add: (s: string) => void): void {
     const t = this.theme;
-    const allDone = this.allConfirmed();
 
-    for (const q of this.questions) {
-      const state = this.states[this.questions.indexOf(q)];
-      const answer = this.getAnswerText(q, state);
-      if (answer !== null) {
-        add(
-          t.fg("muted", ` ${truncateToWidth(q.header, 12)}: `) +
-            t.fg("text", answer),
-        );
-      } else {
-        add(t.fg("dim", ` ${truncateToWidth(q.header, 12)}: `) + t.fg("warning", "—"));
-      }
+    for (let i = 0; i < this.questions.length; i++) {
+      const q = this.questions[i];
+      const answer = this.resolveAnswer(q, this.states[i]);
+      const header = t.fg("muted", ` ${truncateToWidth(q.header, 12)}: `);
+      add(header + (answer !== null ? t.fg("text", answer) : t.fg("warning", "—")));
     }
 
     add("");
-    if (allDone) {
+    if (this.allConfirmed()) {
       add(t.fg("success", " Press Enter to submit"));
     } else {
       const missing = this.questions
@@ -330,29 +318,14 @@ export class AskUserQuestionComponent implements Component {
     add(t.fg("dim", " ←→ switch tabs · Esc cancel"));
   }
 
-  private getAnswerText(q: Question, state: QuestionState): string | null {
-    if (!state.confirmed) return null;
-    if (q.multiSelect) {
-      const labels = [...state.selectedIndices]
-        .sort((a, b) => a - b)
-        .map((idx) => q.options[idx].label);
-      if (state.freeTextValue !== null) labels.push(state.freeTextValue);
-      return labels.join(", ");
-    }
-    if (state.freeTextValue !== null) return state.freeTextValue;
-    if (state.selectedIndex !== null) return q.options[state.selectedIndex].label;
-    return null;
-  }
-
-  // ── Private navigation helpers ───────────────────────────────────────────────
+  // ── Navigation helpers ──────────────────────────────────────────────────────
 
   private moveCursor(delta: -1 | 1): void {
     const q = this.questions[this.activeTab];
     const state = this.states[this.activeTab];
     const max = this.allOptions(q).length - 1;
     state.cursorIndex = Math.max(0, Math.min(max, state.cursorIndex + delta));
-    this.invalidate();
-    this.tui.requestRender();
+    this.refresh();
   }
 
   private toggleSelected(index: number): void {
@@ -362,63 +335,64 @@ export class AskUserQuestionComponent implements Component {
     } else {
       state.selectedIndices.add(index);
     }
-    // If all answers removed, un-confirm so Submit tab blocks correctly
+    // Un-confirm if all answers removed
     if (state.selectedIndices.size === 0 && state.freeTextValue === null) {
       state.confirmed = false;
     }
-    this.invalidate();
-    this.tui.requestRender();
+    this.refresh();
   }
 
   private enterEditMode(): void {
     const state = this.states[this.activeTab];
     state.inEditMode = true;
-    // Restore previous free-text value if any
-    if (state.freeTextValue !== null) {
-      this.editor.setText(state.freeTextValue);
-    } else {
-      this.editor.setText("");
-    }
-    this.invalidate();
-    this.tui.requestRender();
+    this.editor.setText(state.freeTextValue ?? "");
+    this.refresh();
   }
 
-  private exitEditMode(save: boolean): void {
+  // Esc path — discard typed text, restore prior confirmed state untouched.
+  private exitEditMode(): void {
     const state = this.states[this.activeTab];
-    if (save) {
-      state.freeTextValue = this.editor.getText().trim();
-      // Free-text replaces any prior regular-option selection — clear the ✓ indicator
-      state.selectedIndex = null;
-    } else {
-      // Discard typed text — clear freeTextValue only if it was never confirmed
-      // (if confirmed, freeTextValue holds the answer — don't touch it)
-      if (!state.confirmed) {
-        state.freeTextValue = null;
-      }
+    this.editor.setText("");
+    state.inEditMode = false;
+    this.refresh();
+  }
+
+  // Enter-with-text path — commit typed text as the free-text answer.
+  private commitEditMode(): void {
+    const state = this.states[this.activeTab];
+    state.freeTextValue = this.editor.getText().trim();
+    state.selectedIndex = null; // free-text replaces any prior regular-option selection
+    this.editor.setText("");
+    state.inEditMode = false;
+    this.refresh();
+  }
+
+  // Enter-with-empty path — clear any saved free-text, un-confirm if nothing left.
+  private clearEditMode(): void {
+    const state = this.states[this.activeTab];
+    const q = this.questions[this.activeTab];
+    state.freeTextValue = null;
+    if (q.multiSelect && state.selectedIndices.size === 0) {
+      state.confirmed = false;
     }
     this.editor.setText("");
     state.inEditMode = false;
-    this.invalidate();
+    this.refresh();
   }
 
   private autoConfirmIfAnswered(): void {
     const q = this.questions[this.activeTab];
     const state = this.states[this.activeTab];
     if (!q || !state || state.confirmed) return;
-    if (q.multiSelect) {
-      if (state.selectedIndices.size > 0 || state.freeTextValue !== null) {
-        state.confirmed = true;
-      }
-    } else {
-      if (state.freeTextValue !== null || state.selectedIndex !== null) {
-        state.confirmed = true;
-      }
+    // Temporarily set confirmed=true so resolveAnswer returns a value, then check
+    state.confirmed = true;
+    if (this.resolveAnswer(q, state) === null) {
+      state.confirmed = false;
     }
   }
 
   private confirmAndAdvance(): void {
-    const state = this.states[this.activeTab];
-    state.confirmed = true;
+    this.states[this.activeTab].confirmed = true;
     this.advance();
   }
 
@@ -427,13 +401,10 @@ export class AskUserQuestionComponent implements Component {
       this.submit();
       return;
     }
-    if (this.activeTab < this.questions.length - 1) {
-      this.activeTab++;
-    } else {
-      this.activeTab = this.questions.length; // Submit tab
-    }
-    this.invalidate();
-    this.tui.requestRender();
+    this.activeTab = this.activeTab < this.questions.length - 1
+      ? this.activeTab + 1
+      : this.questions.length; // Submit tab
+    this.refresh();
   }
 
   private submit(): void {
@@ -449,20 +420,8 @@ export class AskUserQuestionComponent implements Component {
   private buildResult(): Result {
     const answers: Record<string, string> = {};
     for (let i = 0; i < this.questions.length; i++) {
-      const q = this.questions[i];
-      const s = this.states[i];
-      if (!s.confirmed) continue;
-      if (q.multiSelect) {
-        const labels = [...s.selectedIndices]
-          .sort((a, b) => a - b)
-          .map((idx) => q.options[idx].label);
-        if (s.freeTextValue !== null) labels.push(s.freeTextValue);
-        answers[q.question] = labels.join(", ");
-      } else if (s.freeTextValue !== null) {
-        answers[q.question] = s.freeTextValue;
-      } else if (s.selectedIndex !== null) {
-        answers[q.question] = q.options[s.selectedIndex].label;
-      }
+      const answer = this.resolveAnswer(this.questions[i], this.states[i]);
+      if (answer !== null) answers[this.questions[i].question] = answer;
     }
     return { questions: this.questions, answers, cancelled: false };
   }
@@ -470,142 +429,80 @@ export class AskUserQuestionComponent implements Component {
   // ── handleInput() ────────────────────────────────────────────────────────────
 
   handleInput(data: string): void {
-    // Guard: once done has been called, ignore all further input
     if (this._resolved) return;
 
     // ── Submit tab ─────────────────────────────────────────────────────────────
-    // Check Submit tab FIRST — states[activeTab] is undefined when on Submit tab
+    // Must be checked before accessing states[activeTab] — it's out of bounds here.
     if (!this.isSingle && this.activeTab === this.questions.length) {
-      if (matchesKey(data, Key.enter)) {
-        if (this.allConfirmed()) this.submit();
-        return;
-      }
-      if (matchesKey(data, Key.escape)) {
-        this.cancel();
-        return;
-      }
-      if (matchesKey(data, Key.right)) {
-        this.activeTab = 0;
-        this.invalidate();
-        this.tui.requestRender();
-        return;
-      }
-      if (matchesKey(data, Key.left)) {
-        this.activeTab = this.questions.length - 1;
-        this.invalidate();
-        this.tui.requestRender();
-        return;
-      }
+      if (matchesKey(data, Key.enter))  { if (this.allConfirmed()) this.submit(); return; }
+      if (matchesKey(data, Key.escape)) { this.cancel(); return; }
+      // → wraps to Q1, ← wraps to last question tab (not back to Submit)
+      if (matchesKey(data, Key.right))  { this.activeTab = 0; this.refresh(); return; }
+      if (matchesKey(data, Key.left))   { this.activeTab = this.questions.length - 1; this.refresh(); return; }
       return;
     }
 
     const state = this.states[this.activeTab];
     const q = this.questions[this.activeTab];
 
-    // ── Edit mode: route to inline editor ──────────────────────────────────────
+    // ── Edit mode ──────────────────────────────────────────────────────────────
     if (state.inEditMode) {
-      if (matchesKey(data, Key.escape)) {
-        this.exitEditMode(false);
-        this.tui.requestRender();
-        return;
-      }
+      if (matchesKey(data, Key.escape)) { this.exitEditMode(); return; }
       if (matchesKey(data, Key.enter)) {
         const text = this.editor.getText().trim();
         if (text) {
-          this.exitEditMode(true);
-          // Multi-select: just return to options so user can still toggle checkboxes
-          // Single-select: auto-confirm since free-text is the only answer
-          if (!q.multiSelect) {
-            this.confirmAndAdvance();
-          } else {
-            this.tui.requestRender();
-          }
+          this.commitEditMode();
+          if (!q.multiSelect) this.confirmAndAdvance();
         } else {
-          // Empty text — clear any previously saved free-text answer
-          state.freeTextValue = null;
-          // If nothing left selected either, un-confirm
-          const q = this.questions[this.activeTab];
-          if (q.multiSelect && state.selectedIndices.size === 0) {
-            state.confirmed = false;
-          }
-          this.exitEditMode(false);
-          this.tui.requestRender();
+          this.clearEditMode();
         }
         return;
       }
       this.editor.handleInput(data);
-      this.invalidate();
-      this.tui.requestRender();
+      this.refresh();
       return;
     }
 
     // ── Question tab ───────────────────────────────────────────────────────────
-    if (matchesKey(data, Key.escape)) {
-      this.cancel();
-      return;
-    }
+    if (matchesKey(data, Key.escape)) { this.cancel(); return; }
 
     if (!this.isSingle && matchesKey(data, Key.right)) {
       this.autoConfirmIfAnswered();
       this.activeTab = (this.activeTab + 1) % this.totalTabs;
-      this.invalidate();
-      this.tui.requestRender();
+      this.refresh();
       return;
     }
-
     if (!this.isSingle && matchesKey(data, Key.left)) {
       this.autoConfirmIfAnswered();
       this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
-      this.invalidate();
-      this.tui.requestRender();
+      this.refresh();
       return;
     }
 
-    if (matchesKey(data, Key.up)) {
-      this.moveCursor(-1);
-      return;
-    }
-
-    if (matchesKey(data, Key.down)) {
-      this.moveCursor(1);
-      return;
-    }
+    if (matchesKey(data, Key.up))   { this.moveCursor(-1); return; }
+    if (matchesKey(data, Key.down)) { this.moveCursor(1);  return; }
 
     const opts = this.allOptions(q);
     const onOther = state.cursorIndex === opts.length - 1;
 
-    // "Type something..." — Space or Tab opens the editor
-    // Enter confirms if there's already a saved free-text answer
+    // "Type something..." row
     if (onOther) {
-      if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) {
-        this.enterEditMode();
-        return;
-      }
-      if (matchesKey(data, Key.enter) && state.freeTextValue !== null) {
-        this.confirmAndAdvance();
-        return;
-      }
+      if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) { this.enterEditMode(); return; }
+      if (matchesKey(data, Key.enter) && state.freeTextValue !== null) { this.confirmAndAdvance(); return; }
+      return;
     }
 
+    // Regular option rows
     if (q.multiSelect) {
-      if (matchesKey(data, Key.space) && !onOther) {
-        // Space = toggle selection
-        this.toggleSelected(state.cursorIndex);
-        return;
-      }
-      if (matchesKey(data, Key.enter) && !onOther) {
-        if (state.selectedIndices.size > 0 || state.freeTextValue !== null) {
-          this.confirmAndAdvance();
-        }
-        return;
+      if (matchesKey(data, Key.space)) { this.toggleSelected(state.cursorIndex); return; }
+      if (matchesKey(data, Key.enter) && (state.selectedIndices.size > 0 || state.freeTextValue !== null)) {
+        this.confirmAndAdvance();
       }
     } else {
-      if (matchesKey(data, Key.enter) && !onOther) {
-        // Record explicit selection and clear any free-text
+      if (matchesKey(data, Key.enter)) {
         state.selectedIndex = state.cursorIndex;
         state.freeTextValue = null;
         this.confirmAndAdvance();
-        return;
       }
     }
   }
