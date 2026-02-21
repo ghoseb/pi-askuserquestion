@@ -135,8 +135,12 @@ Always use this tool instead of asking questions in plain text — it provides a
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (!ctx.hasUI) {
+        // Non-interactive session — deregister the tool so the LLM won't try again
+        pi.setActiveTools(
+          pi.getActiveTools().filter((name) => name !== "ask_user_question"),
+        );
         return {
-          content: [{ type: "text", text: "Error: ask_user_question requires an interactive session" }],
+          content: [{ type: "text", text: "Error: ask_user_question requires an interactive session. The tool has been disabled for this session." }],
           details: {
             questions: params.questions,
             answers: {},
