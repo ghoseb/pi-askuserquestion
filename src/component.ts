@@ -48,6 +48,9 @@ export class AskUserQuestionComponent implements Component {
   private cachedWidth?: number;
   private cachedLines?: string[];
 
+  // Guard: prevent done() being called more than once
+  private _resolved: boolean = false;
+
   constructor(
     questions: Question[],
     tui: TUILike,
@@ -383,10 +386,12 @@ export class AskUserQuestionComponent implements Component {
   }
 
   private submit(): void {
+    this._resolved = true;
     this.done(this.buildResult());
   }
 
   private cancel(): void {
+    this._resolved = true;
     this.done(null);
   }
 
@@ -413,6 +418,35 @@ export class AskUserQuestionComponent implements Component {
   // ── handleInput() ────────────────────────────────────────────────────────────
 
   handleInput(data: string): void {
+    // Guard: once done has been called, ignore all further input
+    if (this._resolved) return;
+
+    // ── Submit tab ─────────────────────────────────────────────────────────────
+    // Check Submit tab FIRST — states[activeTab] is undefined when on Submit tab
+    if (!this.isSingle && this.activeTab === this.questions.length) {
+      if (matchesKey(data, Key.enter)) {
+        if (this.allConfirmed()) this.submit();
+        return;
+      }
+      if (matchesKey(data, Key.escape)) {
+        this.cancel();
+        return;
+      }
+      if (matchesKey(data, Key.tab)) {
+        this.activeTab = 0;
+        this.invalidate();
+        this.tui.requestRender();
+        return;
+      }
+      if (matchesKey(data, Key.shift("tab"))) {
+        this.activeTab = this.questions.length - 1;
+        this.invalidate();
+        this.tui.requestRender();
+        return;
+      }
+      return;
+    }
+
     const state = this.states[this.activeTab];
 
     // ── Edit mode: route to inline editor ──────────────────────────────────────
@@ -436,31 +470,6 @@ export class AskUserQuestionComponent implements Component {
       this.editor.handleInput(data);
       this.invalidate();
       this.tui.requestRender();
-      return;
-    }
-
-    // ── Submit tab ─────────────────────────────────────────────────────────────
-    if (!this.isSingle && this.activeTab === this.questions.length) {
-      if (matchesKey(data, Key.enter)) {
-        if (this.allConfirmed()) this.submit();
-        return;
-      }
-      if (matchesKey(data, Key.escape)) {
-        this.cancel();
-        return;
-      }
-      if (matchesKey(data, Key.tab)) {
-        this.activeTab = 0;
-        this.invalidate();
-        this.tui.requestRender();
-        return;
-      }
-      if (matchesKey(data, Key.shift("tab"))) {
-        this.activeTab = this.questions.length - 1;
-        this.invalidate();
-        this.tui.requestRender();
-        return;
-      }
       return;
     }
 
