@@ -1092,3 +1092,383 @@ describe("edge cases", () => {
     expect(count).toBe(1);
   });
 });
+
+// ── Fuzz: tab view — diverse user behaviours ──────────────────────────────────
+//
+// All tests use a 4-question setup: 2 single-select, 1 multi-select, 1 single-select.
+// Goal: cover real usage patterns, navigation quirks, and state interactions
+// that are easy to overlook in unit tests.
+
+describe("fuzz — tab view", () => {
+  const q1: Question = {
+    question: "Which runtime?",
+    header: "Runtime",
+    options: [{ label: "Node" }, { label: "Deno" }, { label: "Bun" }],
+    multiSelect: false,
+  };
+  const q2: Question = {
+    question: "Which databases?",
+    header: "DBs",
+    options: [{ label: "Postgres" }, { label: "Redis" }, { label: "SQLite" }],
+    multiSelect: true,
+  };
+  const q3: Question = {
+    question: "Which cloud?",
+    header: "Cloud",
+    options: [{ label: "AWS" }, { label: "GCP" }, { label: "Fly" }],
+    multiSelect: false,
+  };
+  const q4: Question = {
+    question: "Which CI?",
+    header: "CI",
+    options: [{ label: "GitHub Actions" }, { label: "CircleCI" }],
+    multiSelect: false,
+  };
+  const qs = [q1, q2, q3, q4];
+
+  // Helper: answer all 4 questions with defaults and reach Submit
+  function answerAll(c: AskUserQuestionComponent) {
+    c.handleInput(INPUT.enter); // Q1: Node
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.enter); // Q2: Postgres
+    c.handleInput(INPUT.enter); // Q3: AWS
+    c.handleInput(INPUT.enter); // Q4: GitHub Actions → Submit
+  }
+
+  it("fuzz-01: answer all in order, submit — all answers present", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    answerAll(c);
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved).not.toBeNull();
+    expect(resolved?.cancelled).toBe(false);
+    expect(Object.keys(resolved?.answers)).toHaveLength(4);
+  });
+
+  it("fuzz-02: skip Q1, answer Q2–Q4, Submit blocks, go back, answer Q1, submit works", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    c.handleInput(INPUT.right); // skip Q1 (unanswered) → Q2
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.enter); // Q2: Postgres → Q3
+    c.handleInput(INPUT.enter); // Q3: AWS → Q4
+    c.handleInput(INPUT.enter); // Q4 → Submit
+    c.handleInput(INPUT.enter); // blocked — Q1 unanswered
+    expect(resolved).toBeNull();
+    c.handleInput(INPUT.left); // back to Q4
+    c.handleInput(INPUT.left); // Q3
+    c.handleInput(INPUT.left); // Q2
+    c.handleInput(INPUT.left); // Q1
+    c.handleInput(INPUT.enter); // answer Q1: Node, auto-advances to Q2
+    c.handleInput(INPUT.right); // Q3
+    c.handleInput(INPUT.right); // Q4
+    c.handleInput(INPUT.right); // Submit
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved).not.toBeNull();
+    expect(resolved?.cancelled).toBe(false);
+  });
+
+  it("fuzz-03: answer Q1, change mind by navigating back and re-answering", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    c.handleInput(INPUT.enter); // Q1: Node
+    c.handleInput(INPUT.left); // back to Q1
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.enter); // Q1: Deno (override)
+    // complete the rest
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.enter); // Q2
+    c.handleInput(INPUT.enter); // Q3
+    c.handleInput(INPUT.enter); // Q4 → Submit
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved?.answers["Which runtime?"]).toBe("Deno");
+  });
+
+  it("fuzz-04: cancel from Q3 mid-flow — done(null)", () => {
+    let resolved: Result | null | undefined;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    c.handleInput(INPUT.enter); // Q1
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.enter); // Q2
+    c.handleInput(INPUT.escape); // cancel from Q3
+    expect(resolved).toBeNull();
+  });
+
+  it("fuzz-05: cancel from Submit tab — done(null)", () => {
+    let resolved: Result | null | undefined;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    answerAll(c);
+    c.handleInput(INPUT.escape); // cancel at Submit
+    expect(resolved).toBeNull();
+  });
+
+  it("fuzz-06: → wraps from Submit back to Q1", () => {
+    const c = make(qs);
+    answerAll(c); // lands on Submit
+    c.handleInput(INPUT.right); // wraps to Q1
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("Which runtime?"))).toBe(true);
+  });
+
+  it("fuzz-07: ← from Q1 wraps to Submit tab", () => {
+    const c = make(qs);
+    c.handleInput(INPUT.left); // Q1 → Submit
+    const lines = c.render(80);
+    expect(
+      lines.some(
+        (l) => l.includes("Still needed") || l.includes("Press Enter"),
+      ),
+    ).toBe(true);
+  });
+
+  it("fuzz-08: multi-select — toggle all options on then off, confirm blocked", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    c.handleInput(INPUT.right); // go to Q2
+    c.handleInput(INPUT.space); // Postgres on
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // Redis on
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // SQLite on
+    // Toggle all off
+    c.handleInput(INPUT.up);
+    c.handleInput(INPUT.up);
+    c.handleInput(INPUT.space); // Postgres off
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // Redis off
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // SQLite off
+    c.handleInput(INPUT.enter); // nothing selected — no-op
+    expect(resolved).toBeNull();
+  });
+
+  it("fuzz-09: multi-select with free-text + checkbox combined, navigate away and back, answers preserved", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    // Answer Q1 first
+    c.handleInput(INPUT.enter); // Q1: Node → Q2
+    c.handleInput(INPUT.space); // select Postgres on Q2
+    // add free-text
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down); // Type something...
+    c.handleInput(INPUT.space); // open editor
+    for (const ch of "MongoDB") c.handleInput(ch);
+    c.handleInput(INPUT.enter); // save free-text
+    c.handleInput(INPUT.up); // move cursor off Type something...
+    c.handleInput(INPUT.enter); // confirm Q2 → Q3
+    // Navigate back to Q2 and verify state preserved
+    c.handleInput(INPUT.left); // back to Q2
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("[✓]") && l.includes("Postgres"))).toBe(
+      true,
+    );
+    expect(lines.some((l) => l.includes("MongoDB"))).toBe(true);
+    // Complete and check result
+    c.handleInput(INPUT.right); // Q3
+    c.handleInput(INPUT.enter); // Q3: AWS → Q4
+    c.handleInput(INPUT.enter); // Q4 → Submit
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved?.answers["Which databases?"]).toBe("Postgres, MongoDB");
+  });
+
+  it("fuzz-10: free-text on single-select, then change mind to option — free-text cleared", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    // Add free-text to Q1
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down); // Type something...
+    c.handleInput(INPUT.space); // open editor
+    for (const ch of "Rust") c.handleInput(ch);
+    c.handleInput(INPUT.enter); // save + auto-confirm → Q2
+    c.handleInput(INPUT.left); // back to Q1 — cursor still on Type something... (index 3)
+    // Change to Bun (index 2, one up from Type something...)
+    c.handleInput(INPUT.up); // cursor to Bun (index 2)
+    c.handleInput(INPUT.enter); // select Bun → Q2
+    // Complete
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.enter); // Q2
+    c.handleInput(INPUT.enter); // Q3
+    c.handleInput(INPUT.enter); // Q4 → Submit
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved?.answers["Which runtime?"]).toBe("Bun");
+  });
+
+  it("fuzz-11: rapid → navigation across all tabs without answering — render never crashes", () => {
+    const c = make(qs);
+    for (let i = 0; i < 20; i++) c.handleInput(INPUT.right);
+    expect(() => c.render(80)).not.toThrow();
+    expect(() => c.render(40)).not.toThrow();
+  });
+
+  it("fuzz-12: rapid ← navigation across all tabs — render never crashes", () => {
+    const c = make(qs);
+    for (let i = 0; i < 20; i++) c.handleInput(INPUT.left);
+    expect(() => c.render(80)).not.toThrow();
+  });
+
+  it("fuzz-13: answer Q1 via → auto-confirm, deselect in Q2 then re-select, verify Submit reflects latest", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    c.handleInput(INPUT.enter); // Q1: Node → Q2
+    c.handleInput(INPUT.space); // select Postgres
+    c.handleInput(INPUT.space); // deselect Postgres — nothing selected
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // select Redis
+    c.handleInput(INPUT.enter); // confirm Q2: Redis → Q3
+    c.handleInput(INPUT.enter); // Q3 → Q4
+    c.handleInput(INPUT.enter); // Q4 → Submit
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved?.answers["Which databases?"]).toBe("Redis");
+  });
+
+  it("fuzz-14: answer all, navigate back to Q2, clear all checkboxes — Submit blocks", () => {
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    answerAll(c); // lands on Submit
+    c.handleInput(INPUT.left); // Q4
+    c.handleInput(INPUT.left); // Q3
+    c.handleInput(INPUT.left); // Q2
+    // clear the selection (was Postgres from answerAll)
+    c.handleInput(INPUT.space); // toggle Postgres off — nothing selected → un-confirmed
+    c.handleInput(INPUT.right); // Q3
+    c.handleInput(INPUT.right); // Q4
+    c.handleInput(INPUT.right); // Submit
+    c.handleInput(INPUT.enter); // blocked
+    expect(resolved).toBeNull();
+  });
+
+  it("fuzz-15: open free-text editor on Q2, type, Esc (discard), checkbox still works", () => {
+    let _resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      _resolved = r;
+    });
+    c.handleInput(INPUT.right); // Q2
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down); // Type something...
+    c.handleInput(INPUT.space); // open editor
+    for (const ch of "nope") c.handleInput(ch);
+    c.handleInput(INPUT.escape); // discard — freeTextValue unchanged (was null)
+    // Select a checkbox instead
+    c.handleInput(INPUT.up);
+    c.handleInput(INPUT.up);
+    c.handleInput(INPUT.up); // back to Postgres
+    c.handleInput(INPUT.space); // select Postgres
+    c.handleInput(INPUT.enter); // confirm → Q3
+    c.handleInput(INPUT.left); // Q2 — check no free-text preview
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("nope"))).toBe(false);
+  });
+
+  it("fuzz-16: Enter on Submit repeatedly — done called exactly once", () => {
+    let count = 0;
+    const c = make(qs, () => {
+      count++;
+    });
+    answerAll(c);
+    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.enter);
+    expect(count).toBe(1);
+  });
+
+  it("fuzz-17: Esc on Submit tab, then rebuild and submit — done called once total", () => {
+    let count = 0;
+    const c = make(qs, () => {
+      count++;
+    });
+    answerAll(c);
+    c.handleInput(INPUT.escape); // cancel
+    c.handleInput(INPUT.enter); // no-op after resolved
+    expect(count).toBe(1);
+  });
+
+  it("fuzz-18: mix of → auto-confirm (multi-select) and Enter (single-select)", () => {
+    // → only auto-confirms multi-select (has selectedIndices) or single-select with freeText.
+    // Single-select requires explicit Enter to set selectedIndex.
+    let resolved: Result | null = null;
+    const c = make(qs, (r) => {
+      resolved = r;
+    });
+    // Q1 (single): Enter to confirm Node
+    c.handleInput(INPUT.enter); // Q1: Node → Q2
+    // Q2 (multi): Space to select, → to auto-confirm
+    c.handleInput(INPUT.space); // select Postgres
+    c.handleInput(INPUT.right); // auto-confirm Q2 → Q3
+    // Q3 (single): Enter to confirm AWS
+    c.handleInput(INPUT.enter); // Q3: AWS → Q4
+    // Q4 (single): Enter to confirm GitHub Actions → Submit
+    c.handleInput(INPUT.enter); // Q4 → Submit
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved).not.toBeNull();
+    expect(resolved?.answers["Which runtime?"]).toBe("Node");
+    expect(resolved?.answers["Which databases?"]).toBe("Postgres");
+    expect(resolved?.answers["Which cloud?"]).toBe("AWS");
+    expect(resolved?.answers["Which CI?"]).toBe("GitHub Actions");
+  });
+
+  it("fuzz-19: narrow terminal — render never crashes or overflows on all tabs", () => {
+    const c = make(qs);
+    // Answer a couple questions first to get some state
+    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.space);
+    c.handleInput(INPUT.enter);
+    for (let tab = 0; tab < 5; tab++) {
+      c.handleInput(INPUT.right);
+      for (const width of [20, 30, 40]) {
+        const lines = c.render(width);
+        for (const line of lines) {
+          expect(stripAnsi(line).length).toBeLessThanOrEqual(width);
+        }
+      }
+    }
+  });
+
+  it("fuzz-20: free-text cleared on Q1, cursor restored to option on re-entry", () => {
+    const c = make(qs);
+    // Type free-text on Q1
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // open editor
+    for (const ch of "Elixir") c.handleInput(ch);
+    c.handleInput(INPUT.enter); // save + confirm → Q2
+    c.handleInput(INPUT.left); // back to Q1
+    // Re-open and clear
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // re-open editor (pre-filled with "Elixir")
+    for (let i = 0; i < 6; i++) c.handleInput("\x7f"); // backspace all
+    c.handleInput(INPUT.enter); // empty enter — clears freeTextValue + un-confirms
+    // Verify no free-text preview shown
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("Elixir"))).toBe(false);
+    // Navigate to Submit (4 rights from Q1: Q2→Q3→Q4→Submit)
+    for (let i = 0; i < 4; i++) c.handleInput(INPUT.right);
+    const submitLines = c.render(80);
+    expect(submitLines.some((l) => l.includes("Still needed"))).toBe(true);
+  });
+});
