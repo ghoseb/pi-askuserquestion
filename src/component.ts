@@ -141,10 +141,11 @@ export class AskUserQuestionComponent implements Component {
     }
 
     // ── Question body or Submit tab ──
-    if (!this.isSingle && this.activeTab === this.questions.length) {
+    const q = this.questions[this.activeTab];
+    if (!q) {
+      // activeTab is on Submit tab (or out of bounds) — render Submit view
       this.renderSubmitTab(width, add);
     } else {
-      const q = this.questions[this.activeTab];
       const state = this.states[this.activeTab];
       this.renderQuestionBody(q, state, width, add);
     }
@@ -480,16 +481,20 @@ export class AskUserQuestionComponent implements Component {
     }
 
     if (matchesKey(data, Key.tab)) {
-      this.activeTab = (this.activeTab + 1) % this.totalTabs;
-      this.invalidate();
-      this.tui.requestRender();
+      if (!this.isSingle) {
+        this.activeTab = (this.activeTab + 1) % this.totalTabs;
+        this.invalidate();
+        this.tui.requestRender();
+      }
       return;
     }
 
     if (matchesKey(data, Key.shift("tab"))) {
-      this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
-      this.invalidate();
-      this.tui.requestRender();
+      if (!this.isSingle) {
+        this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
+        this.invalidate();
+        this.tui.requestRender();
+      }
       return;
     }
 
