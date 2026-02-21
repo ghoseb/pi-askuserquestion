@@ -267,7 +267,7 @@ export class AskUserQuestionComponent implements Component {
     } else if (this.isSingle) {
       add(t.fg("dim", " ↑↓ navigate · Enter select · Esc cancel"));
     } else {
-      add(t.fg("dim", " Tab/↑↓ navigate · Space toggle · Enter confirm · Esc cancel"));
+      add(t.fg("dim", " ←→/Tab switch tabs · ↑↓ navigate · Space toggle · Enter confirm · Esc cancel"));
     }
   }
 
@@ -300,7 +300,7 @@ export class AskUserQuestionComponent implements Component {
       add(t.fg("warning", ` Unanswered: ${missing}`));
     }
     add("");
-    add(t.fg("dim", " Tab/←→ navigate · Esc cancel"));
+    add(t.fg("dim", " ←→/Tab switch tabs · Esc cancel"));
   }
 
   private getAnswerText(q: Question, state: QuestionState): string | null {
@@ -480,7 +480,7 @@ export class AskUserQuestionComponent implements Component {
       return;
     }
 
-    if (matchesKey(data, Key.tab)) {
+    if (matchesKey(data, Key.tab) || (!this.isSingle && matchesKey(data, Key.right))) {
       if (!this.isSingle) {
         this.activeTab = (this.activeTab + 1) % this.totalTabs;
         this.invalidate();
@@ -489,7 +489,7 @@ export class AskUserQuestionComponent implements Component {
       return;
     }
 
-    if (matchesKey(data, Key.shift("tab"))) {
+    if (matchesKey(data, Key.shift("tab")) || (!this.isSingle && matchesKey(data, Key.left))) {
       if (!this.isSingle) {
         this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
         this.invalidate();
