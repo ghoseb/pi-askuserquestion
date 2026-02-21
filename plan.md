@@ -1,1 +1,0 @@
-Now let me do a thorough review of the implementation against the architecture spec to find any gaps:

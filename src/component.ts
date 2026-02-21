@@ -1,15 +1,15 @@
+import type { Theme } from "@mariozechner/pi-coding-agent";
 import {
   type Component,
   Editor,
   type EditorTheme,
   Key,
   matchesKey,
-  truncateToWidth,
   type TUI,
+  truncateToWidth,
   wrapTextWithAnsi,
 } from "@mariozechner/pi-tui";
-import { Theme } from "@mariozechner/pi-coding-agent";
-import type { Question, Option, Result } from "./schema.ts";
+import type { Option, Question, Result } from "./schema.ts";
 
 // ── TUILike ───────────────────────────────────────────────────────────────────
 // Minimal interface satisfied by both the real TUI and a test stub.
@@ -97,7 +97,10 @@ export class AskUserQuestionComponent implements Component {
   // ── Derived helpers ─────────────────────────────────────────────────────────
 
   private allOptions(q: Question): DisplayOption[] {
-    return [...q.options, { label: "Type your own answer...", isOther: true as const }];
+    return [
+      ...q.options,
+      { label: "Type your own answer...", isOther: true as const },
+    ];
   }
 
   private allConfirmed(): boolean {
@@ -161,7 +164,7 @@ export class AskUserQuestionComponent implements Component {
     return lines;
   }
 
-  private renderTabBar(width: number, add: (s: string) => void): void {
+  private renderTabBar(_width: number, add: (s: string) => void): void {
     const t = this.theme;
     const parts: string[] = [" "];
 
@@ -210,8 +213,11 @@ export class AskUserQuestionComponent implements Component {
     const opts = this.allOptions(q);
 
     // Question text (word-wrapped)
-    lines_block: {
-      const wrapped = wrapTextWithAnsi(t.fg("text", ` ${q.question}`), width - 2);
+    {
+      const wrapped = wrapTextWithAnsi(
+        t.fg("text", ` ${q.question}`),
+        width - 2,
+      );
       for (const line of wrapped) {
         add(line);
       }
@@ -239,16 +245,23 @@ export class AskUserQuestionComponent implements Component {
         if (q.multiSelect) {
           // Match multi-select box format: prefix + ' ' + box(3) + ' ' + label
           const box = hasFreeText ? t.fg("success", "[✓]") : t.fg("dim", "[ ]");
-          add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+          add(
+            `${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`,
+          );
         } else {
           // Match single-select format: prefix + ' ' + check(1) + ' ' + label
           const check = hasFreeText ? t.fg("success", "✓") : " ";
-          add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+          add(
+            `${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`,
+          );
         }
         // Preview of saved text below, no ✓ here
         if (hasFreeText) {
           const indent = q.multiSelect ? "       " : "     ";
-          const preview = truncateToWidth(state.freeTextValue!, width - indent.length);
+          const preview = truncateToWidth(
+            state.freeTextValue ?? "",
+            width - indent.length,
+          );
           add(`${indent}${t.fg("dim", `"${preview}"`)}`);
         }
       } else {
@@ -262,7 +275,10 @@ export class AskUserQuestionComponent implements Component {
       // Description (if present, not for "Type your own answer...")
       if (!isOther && opt.description) {
         const indent = q.multiSelect ? "       " : "     ";
-        const wrapped = wrapTextWithAnsi(t.fg("muted", opt.description), width - indent.length);
+        const wrapped = wrapTextWithAnsi(
+          t.fg("muted", opt.description),
+          width - indent.length,
+        );
         for (const line of wrapped) {
           add(`${indent}${line}`);
         }
@@ -299,7 +315,7 @@ export class AskUserQuestionComponent implements Component {
     }
   }
 
-  private renderSubmitTab(width: number, add: (s: string) => void): void {
+  private renderSubmitTab(_width: number, add: (s: string) => void): void {
     const t = this.theme;
     const allDone = this.allConfirmed();
 
@@ -318,7 +334,10 @@ export class AskUserQuestionComponent implements Component {
             t.fg("text", answer),
         );
       } else {
-        add(t.fg("dim", ` ${truncateToWidth(q.header, 12)}: `) + t.fg("warning", "—"));
+        add(
+          t.fg("dim", ` ${truncateToWidth(q.header, 12)}: `) +
+            t.fg("warning", "—"),
+        );
       }
     }
 
@@ -346,7 +365,8 @@ export class AskUserQuestionComponent implements Component {
       return labels.join(", ");
     }
     if (state.freeTextValue !== null) return state.freeTextValue;
-    if (state.selectedIndex !== null) return q.options[state.selectedIndex].label;
+    if (state.selectedIndex !== null)
+      return q.options[state.selectedIndex].label;
     return null;
   }
 

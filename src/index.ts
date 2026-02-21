@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Text, truncateToWidth } from "@mariozechner/pi-tui";
+import { TruncatedText } from "@mariozechner/pi-tui";
 import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type Question, type Result } from "./schema.ts";
 
@@ -66,7 +66,7 @@ Always use this tool instead of asking questions in plain text — it provides a
     renderCall(args, theme) {
       const questions = (args.questions ?? []) as Question[];
       const topics = questions.map((q) => q.header).join(", ");
-      return new Text(
+      return new TruncatedText(
         theme.fg("toolTitle", theme.bold("ask user ")) +
           theme.fg("muted", topics),
         0,
@@ -79,32 +79,23 @@ Always use this tool instead of asking questions in plain text — it provides a
 
       if (!details) {
         const t = result.content[0];
-        return new Text(t?.type === "text" ? t.text : "", 0, 0);
+        return new TruncatedText(t?.type === "text" ? t.text : "", 0, 0);
       }
 
       if (details.cancelled) {
-        return new Text(theme.fg("warning", "Cancelled"), 0, 0);
+        return new TruncatedText(theme.fg("warning", "Cancelled"), 0, 0);
       }
-
-      const maxWidth = 80;
 
       const lines = details.questions.map((q) => {
         const answer = details.answers[q.question] ?? "(no answer)";
-        // prefix visible length: "✓ " (2) + header + ": " (2)
-        const prefixLen = 2 + q.header.length + 2;
-        const available = maxWidth - prefixLen;
-        const display =
-          available > 3 && answer.length > available
-            ? `${truncateToWidth(answer, available - 1)}…`
-            : answer;
         return (
           theme.fg("success", "✓ ") +
           theme.fg("accent", `${q.header}: `) +
-          theme.fg("text", display)
+          theme.fg("text", answer)
         );
       });
 
-      return new Text(lines.join("\n"), 0, 0);
+      return new TruncatedText(lines.join("\n"), 0, 0);
     },
   });
 }
