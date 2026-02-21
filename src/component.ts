@@ -179,7 +179,7 @@ export class AskUserQuestionComponent implements Component {
       } else if (s.confirmed) {
         styled = t.fg("success", ` ■${header} `);
       } else {
-        styled = t.fg("muted", ` □${header} `);
+        styled = t.fg("muted", `  ${header} `);
       }
       parts.push(styled);
     }
@@ -232,14 +232,24 @@ export class AskUserQuestionComponent implements Component {
         const labelColor = isSelected ? "accent" : "text";
         add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
       } else if (isOther) {
-        // "Type something..." row
+        // "Type something..." row — check/box matches sibling row format
+        const hasFreeText = state.freeTextValue !== null && !state.inEditMode;
         const suffix = state.inEditMode ? t.fg("accent", " ✎") : "";
         const labelColor = isSelected ? "accent" : "muted";
-        add(`${prefix}  ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
-        // Show saved free-text answer as a preview when confirmed and not editing
-        if (state.freeTextValue !== null && !state.inEditMode) {
-          const preview = truncateToWidth(state.freeTextValue, width - 8);
-          add(`     ${t.fg("success", "✓ ")}${t.fg("dim", `"${preview}"`)}`);
+        if (q.multiSelect) {
+          // Match multi-select box format: prefix + ' ' + box(3) + ' ' + label
+          const box = hasFreeText ? t.fg("success", "[✓]") : t.fg("dim", "[ ]");
+          add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+        } else {
+          // Match single-select format: prefix + ' ' + check(1) + ' ' + label
+          const check = hasFreeText ? t.fg("success", "✓") : " ";
+          add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+        }
+        // Preview of saved text below, no ✓ here
+        if (hasFreeText) {
+          const indent = q.multiSelect ? "       " : "     ";
+          const preview = truncateToWidth(state.freeTextValue!, width - indent.length);
+          add(`${indent}${t.fg("dim", `"${preview}"`)}`);
         }
       } else {
         // Single-select — show ✓ on the confirmed selection

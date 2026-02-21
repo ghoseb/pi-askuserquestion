@@ -546,10 +546,12 @@ describe("handleInput — multi-question tab navigation", () => {
     expect(lines.some((l) => l.includes("■"))).toBe(true);
   });
 
-  it("unconfirmed tab shows □ indicator", () => {
+  it("unconfirmed tab has no ■ indicator", () => {
     const c = make([singleSelect, multiSelectQ]);
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("□"))).toBe(true);
+    // Tab bar exists (Submit visible) but no ■ yet
+    expect(lines.some((l) => l.includes("Submit"))).toBe(true);
+    expect(lines.some((l) => l.includes("■"))).toBe(false);
   });
 });
 
@@ -796,8 +798,9 @@ describe("single-select: free-text then pick regular option", () => {
     const pgLines = lines.filter((l) => l.includes("PostgreSQL"));
     expect(pgLines.length).toBeGreaterThan(0);
     for (const l of pgLines) expect(l).not.toMatch(/✓/);
-    // Free-text preview should show ✓
-    expect(lines.some((l) => l.includes("✓") && l.includes("mytext"))).toBe(true);
+    // ✓ should be on the "Type something..." row, preview text on the line below
+    expect(lines.some((l) => l.includes("✓") && l.includes("Type something"))).toBe(true);
+    expect(lines.some((l) => l.includes("mytext"))).toBe(true);
   });
 
   it("navigating back and selecting a regular option clears free-text", () => {
