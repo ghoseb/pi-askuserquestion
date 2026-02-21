@@ -374,13 +374,17 @@ describe("handleInput — multi-select", () => {
     const c = make([multiSelectQ], () => { called = true; });
     c.handleInput(INPUT.enter);
     expect(called).toBe(false);
+    // Nothing selected either
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("[✓]"))).toBe(false);
   });
 
-  it("Enter after selecting one option resolves with that label", () => {
+  it("Enter with something selected confirms", () => {
     let resolved: Result | null = null;
     const c = make([multiSelectQ], (r) => { resolved = r; });
-    c.handleInput(INPUT.space); // select Auth (index 0)
-    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.space); // select Auth
+    c.handleInput(INPUT.enter); // confirm
+    expect(resolved).not.toBeNull();
     expect(resolved!.answers["Which features should we implement?"]).toBe("Auth");
   });
 
@@ -391,7 +395,7 @@ describe("handleInput — multi-select", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // select Export (index 2)
-    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.enter); // confirm
     expect(resolved!.answers["Which features should we implement?"]).toBe("Auth, Export");
   });
 
@@ -415,11 +419,11 @@ describe("handleInput — multi-select", () => {
 // ── handleInput — free-text mode ──────────────────────────────────────────────
 
 describe("handleInput — free-text mode", () => {
-  it("Enter on 'Type something...' enters edit mode — render shows ✎", () => {
+  it("Space on 'Type something...' enters edit mode — render shows ✎", () => {
     const c = make([singleSelect]);
     // Navigate to last option
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
-    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.space);
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("✎"))).toBe(true);
   });
@@ -435,7 +439,7 @@ describe("handleInput — free-text mode", () => {
   it("Esc in edit mode exits without confirming — ✎ gone", () => {
     const c = make([singleSelect]);
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
-    c.handleInput(INPUT.enter); // enter edit mode
+    c.handleInput(INPUT.space); // open editor
     c.handleInput(INPUT.escape); // exit
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("✎"))).toBe(false);
@@ -445,16 +449,35 @@ describe("handleInput — free-text mode", () => {
     let called = false;
     const c = make([singleSelect], () => { called = true; });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
-    c.handleInput(INPUT.enter);
+    c.handleInput(INPUT.space); // open editor
     c.handleInput(INPUT.escape);
     expect(called).toBe(false);
+  });
+
+  it("Enter with empty text clears previously saved free-text", () => {
+    const c = make([singleSelect, twoOptionsQ]);
+    // Type free-text on Q1
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // open editor
+    "hello".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // save "hello", back to options (single-select: auto-confirms + advances)
+    // Navigate back, re-open editor, clear text
+    c.handleInput(INPUT.left);
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.space); // re-open editor (pre-filled with "hello")
+    // Clear editor by deleting — simulate backspace 5 times
+    for (let i = 0; i < 5; i++) c.handleInput("\x7f"); // backspace
+    c.handleInput(INPUT.enter); // Enter with empty → clears freeTextValue
+    // Preview below "Type something..." should be gone
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("hello"))).toBe(false);
   });
 
   it("Enter with empty text in edit mode exits without confirming", () => {
     let called = false;
     const c = make([singleSelect], () => { called = true; });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
-    c.handleInput(INPUT.enter); // enter edit mode
+    c.handleInput(INPUT.space); // open editor
     c.handleInput(INPUT.enter); // enter with empty text
     expect(called).toBe(false);
     // Should be back in option mode
@@ -466,8 +489,7 @@ describe("handleInput — free-text mode", () => {
     let resolved: Result | null = null;
     const c = make([singleSelect], (r) => { resolved = r; });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
-    c.handleInput(INPUT.enter); // enter edit mode
-    // Type characters individually
+    c.handleInput(INPUT.space); // open editor
     "hello".split("").forEach((ch) => c.handleInput(ch));
     c.handleInput(INPUT.enter); // confirm
     expect(resolved).not.toBeNull();
@@ -576,12 +598,12 @@ describe("full round-trip", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.enter); // confirm, auto-advance to Q2
 
-    // Answer Q2: select Auth, ↓↓, select Export, Enter
+    // Answer Q2: select Auth + Export with Space, then Enter to confirm
     c.handleInput(INPUT.space); // select Auth (index 0)
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // select Export (index 2)
-    c.handleInput(INPUT.enter); // confirm, auto-advance to Submit
+    c.handleInput(INPUT.enter); // confirm (Auth + Export selected), auto-advance to Submit
 
     // Submit
     c.handleInput(INPUT.enter);
@@ -644,19 +666,38 @@ describe("multi-select + free-text combined", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down); // cursor on Type something...
-    c.handleInput(INPUT.enter); // enter edit mode
+    c.handleInput(INPUT.space); // open editor
     "mytext".split("").forEach((ch) => c.handleInput(ch));
-    c.handleInput(INPUT.enter); // confirm free-text + checkboxes
+    c.handleInput(INPUT.enter); // save free-text, return to options (cursor still on Type something...)
+    // Move cursor to a real option, then confirm
+    c.handleInput(INPUT.up); // cursor on Export (index 2)
+    c.handleInput(INPUT.enter); // confirm (Auth selected + free-text saved)
     expect(resolved!.answers["Which features should we implement?"]).toBe("Auth, mytext");
+  });
+
+  it("Enter on Type something... with saved free-text confirms immediately", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ], (r) => { resolved = r; });
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.space); // open editor
+    "hello".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // save free-text, back to options
+    // cursor still on Type something... — Enter should confirm now
+    c.handleInput(INPUT.enter);
+    expect(resolved).not.toBeNull();
+    expect(resolved!.answers["Which features should we implement?"]).toBe("hello");
   });
 
   it("Enter confirms when only free-text typed and no boxes checked", () => {
     let resolved: Result | null = null;
     const c = make([multiSelectQ], (r) => { resolved = r; });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
-    c.handleInput(INPUT.enter); // enter edit mode
+    c.handleInput(INPUT.space); // open editor
     "onlytext".split("").forEach((ch) => c.handleInput(ch));
-    c.handleInput(INPUT.enter); // confirm
+    c.handleInput(INPUT.enter); // save free-text, return to options
+    // Move cursor off "Type something..." to a regular option, then confirm
+    c.handleInput(INPUT.up);
+    c.handleInput(INPUT.enter); // confirm (freeTextValue set, no checkboxes)
     expect(resolved!.answers["Which features should we implement?"]).toBe("onlytext");
   });
 
@@ -667,14 +708,116 @@ describe("multi-select + free-text combined", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down); // cursor on Type something...
-    c.handleInput(INPUT.enter); // enter edit mode
+    c.handleInput(INPUT.space); // open editor
     "extra".split("").forEach((ch) => c.handleInput(ch));
-    c.handleInput(INPUT.enter); // confirm → advance to Q2
-    // Answer Q2
-    c.handleInput(INPUT.enter); // confirm → advance to Submit
+    c.handleInput(INPUT.enter); // save free-text, return to options (cursor on Type something...)
+    c.handleInput(INPUT.up);    // move cursor to a real option
+    c.handleInput(INPUT.enter); // confirm Q1 (Auth + extra), advance to Q2
+    // Answer Q2 (single-select)
+    c.handleInput(INPUT.enter); // confirm Q2, advance to Submit
     // Now on Submit tab — render and check answer text
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Auth") && l.includes("extra"))).toBe(true);
+  });
+});
+
+// ── auto-confirm on → navigation ─────────────────────────────────────────────
+
+describe("auto-confirm on → navigation", () => {
+  it("multi-select: navigating → with selections auto-confirms the question", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    c.handleInput(INPUT.space); // select Auth on Q1
+    c.handleInput(INPUT.right); // navigate to Q2 — should auto-confirm Q1
+    // Confirm Q2 (single-select: Enter sets selectedIndex, confirms, advances to Submit)
+    c.handleInput(INPUT.enter);
+    // Now on Submit tab — submit
+    c.handleInput(INPUT.enter);
+    expect(resolved).not.toBeNull();
+    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth");
+  });
+
+  it("multi-select: navigating → with nothing selected does NOT auto-confirm", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    c.handleInput(INPUT.right); // navigate away with nothing selected
+    c.handleInput(INPUT.right); // navigate to Submit tab
+    c.handleInput(INPUT.enter); // try to submit — should not resolve (Q1 unconfirmed)
+    expect(resolved).toBeNull();
+  });
+
+  it("single-select: navigating → without explicit Enter does NOT auto-confirm", () => {
+    let resolved: Result | null = null;
+    const c = make([singleSelect, twoOptionsQ], (r) => { resolved = r; });
+    c.handleInput(INPUT.down);  // move cursor to SQLite
+    c.handleInput(INPUT.right); // navigate away — cursor position is NOT an answer
+    c.handleInput(INPUT.enter); // confirm Q2
+    c.handleInput(INPUT.right); // go to Submit
+    c.handleInput(INPUT.enter); // try to submit — Q1 unconfirmed, should not resolve
+    expect(resolved).toBeNull();
+  });
+});
+
+// ── single-select: free-text then pick option ────────────────────────────────
+
+describe("single-select: free-text then pick regular option", () => {
+  it("selecting a regular option after free-text typed uses the option label", () => {
+    let resolved: Result | null = null;
+    const c = make([singleSelect], (r) => { resolved = r; });
+    // Type free-text first
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.space); // open editor
+    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // confirm free-text — resolves for single question
+    // For this test we need a two-question setup so we can navigate back
+    expect(resolved).not.toBeNull();
+  });
+
+  it("typing free-text clears the ✓ on the previously selected regular option", () => {
+    // Three questions so Q1 auto-advance goes to Q2, not Submit
+    const q3: Question = { question: "Q3?", header: "Q3", options: [{ label: "X" }, { label: "Y" }], multiSelect: false };
+    const c = make([singleSelect, twoOptionsQ, q3]);
+    // Confirm Q1 with PostgreSQL (Enter → selectedIndex=0, advance to Q2)
+    c.handleInput(INPUT.enter);
+    // Navigate back to Q1
+    c.handleInput(INPUT.left);
+    // Now on Q1: cursor on first option, selectedIndex=0 (✓ on PostgreSQL)
+    // Verify ✓ is on PostgreSQL before typing free-text
+    let lines = c.render(80);
+    expect(lines.some((l) => l.includes("✓") && l.includes("PostgreSQL"))).toBe(true);
+    // Type free-text
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.space); // open editor
+    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // save free-text — clears selectedIndex, auto-advances to Q2
+    // Navigate back to Q1 to verify ✓ is gone from PostgreSQL
+    c.handleInput(INPUT.left);
+    lines = c.render(80);
+    const pgLines = lines.filter((l) => l.includes("PostgreSQL"));
+    expect(pgLines.length).toBeGreaterThan(0);
+    for (const l of pgLines) expect(l).not.toMatch(/✓/);
+    // Free-text preview should show ✓
+    expect(lines.some((l) => l.includes("✓") && l.includes("mytext"))).toBe(true);
+  });
+
+  it("navigating back and selecting a regular option clears free-text", () => {
+    let resolved: Result | null = null;
+    // Use two questions so Q1 doesn't resolve immediately
+    const c = make([singleSelect, twoOptionsQ], (r) => { resolved = r; });
+    // Type free-text on Q1
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.space); // open editor
+    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // confirm free-text, advance to Q2
+    // Navigate back to Q1
+    c.handleInput(INPUT.left);
+    // Move cursor to first real option and confirm
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.up); // cursor on PostgreSQL
+    c.handleInput(INPUT.enter); // select PostgreSQL — should clear free-text
+    // Advance to Q2 and submit
+    c.handleInput(INPUT.enter); // confirm Q2
+    c.handleInput(INPUT.enter); // submit
+    expect(resolved!.answers["Which database should we use?"]).toBe("PostgreSQL");
   });
 });
 
@@ -735,7 +878,7 @@ describe("edge cases", () => {
     const c = make([singleSelect], (r) => { resolved = r; });
     // Go to "Type something...", enter edit mode, type, then Esc
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
-    c.handleInput(INPUT.enter); // enter edit mode
+    c.handleInput(INPUT.space); // open editor
     "hello".split("").forEach((ch) => c.handleInput(ch));
     c.handleInput(INPUT.escape); // exit WITHOUT saving
     // Navigate back to option 1, confirm

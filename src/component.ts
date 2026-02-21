@@ -19,9 +19,11 @@ export interface TUILike {
 
 // ── QuestionState ─────────────────────────────────────────────────────────────
 interface QuestionState {
-  /** Currently highlighted option index (cursor row) */
+  /** Visual cursor position — where the highlight is, NOT the answer */
   cursorIndex: number;
-  /** For multiSelect: set of selected option indices */
+  /** Single-select: explicitly chosen option index; null = nothing chosen yet */
+  selectedIndex: number | null;
+  /** For multiSelect: set of explicitly selected option indices */
   selectedIndices: Set<number>;
   /** Whether the user has confirmed this question */
   confirmed: boolean;
@@ -64,6 +66,7 @@ export class AskUserQuestionComponent implements Component {
 
     this.states = questions.map(() => ({
       cursorIndex: 0,
+      selectedIndex: null,
       selectedIndices: new Set<number>(),
       confirmed: false,
       freeTextValue: null,
@@ -239,9 +242,11 @@ export class AskUserQuestionComponent implements Component {
           add(`     ${t.fg("success", "✓ ")}${t.fg("dim", `"${preview}"`)}`);
         }
       } else {
-        // Single-select
+        // Single-select — show ✓ on the confirmed selection
+        const isConfirmedChoice = state.selectedIndex === i;
+        const check = isConfirmedChoice ? t.fg("success", "✓") : " ";
         const labelColor = isSelected ? "accent" : "text";
-        add(`${prefix}  ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
+        add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
       }
 
       // Description (if present, not for "Type something...")
@@ -266,13 +271,21 @@ export class AskUserQuestionComponent implements Component {
 
     add("");
 
-    // Footer help
+    // Footer help — context-sensitive based on cursor position
     if (state.inEditMode) {
-      add(t.fg("dim", " Enter to submit · Esc to go back"));
-    } else if (this.isSingle) {
-      add(t.fg("dim", " ↑↓ navigate · Enter select · Esc cancel"));
+      add(t.fg("dim", " Enter submit · Esc back"));
     } else {
-      add(t.fg("dim", " ←→ switch tabs · ↑↓ navigate · Space toggle · Enter confirm · Esc cancel"));
+      const onOther = state.cursorIndex === opts.length - 1;
+      const tabHint = this.isSingle ? "" : " · ←→ switch tabs";
+      let actionHint: string;
+      if (onOther) {
+        actionHint = "Space/Tab open editor";
+      } else if (q.multiSelect) {
+        actionHint = "Space toggle · Enter confirm";
+      } else {
+        actionHint = "Enter select";
+      }
+      add(t.fg("dim", ` ↑↓ navigate · ${actionHint}${tabHint} · Esc cancel`));
     }
   }
 
@@ -314,13 +327,12 @@ export class AskUserQuestionComponent implements Component {
       const labels = [...state.selectedIndices]
         .sort((a, b) => a - b)
         .map((idx) => q.options[idx].label);
-      if (state.freeTextValue !== null) {
-        labels.push(state.freeTextValue);
-      }
+      if (state.freeTextValue !== null) labels.push(state.freeTextValue);
       return labels.join(", ");
     }
     if (state.freeTextValue !== null) return state.freeTextValue;
-    return q.options[state.cursorIndex]?.label ?? null;
+    if (state.selectedIndex !== null) return q.options[state.selectedIndex].label;
+    return null;
   }
 
   // ── Private navigation helpers ───────────────────────────────────────────────
@@ -362,6 +374,8 @@ export class AskUserQuestionComponent implements Component {
     const state = this.states[this.activeTab];
     if (save) {
       state.freeTextValue = this.editor.getText().trim();
+      // Free-text replaces any prior regular-option selection — clear the ✓ indicator
+      state.selectedIndex = null;
     } else {
       // Discard typed text — clear freeTextValue only if it was never confirmed
       // (if confirmed, freeTextValue holds the answer — don't touch it)
@@ -372,6 +386,21 @@ export class AskUserQuestionComponent implements Component {
     this.editor.setText("");
     state.inEditMode = false;
     this.invalidate();
+  }
+
+  private autoConfirmIfAnswered(): void {
+    const q = this.questions[this.activeTab];
+    const state = this.states[this.activeTab];
+    if (!q || !state || state.confirmed) return;
+    if (q.multiSelect) {
+      if (state.selectedIndices.size > 0 || state.freeTextValue !== null) {
+        state.confirmed = true;
+      }
+    } else {
+      if (state.freeTextValue !== null || state.selectedIndex !== null) {
+        state.confirmed = true;
+      }
+    }
   }
 
   private confirmAndAdvance(): void {
@@ -411,18 +440,15 @@ export class AskUserQuestionComponent implements Component {
       const s = this.states[i];
       if (!s.confirmed) continue;
       if (q.multiSelect) {
-        // Combine checked options + free-text (if any), in selection order
         const labels = [...s.selectedIndices]
           .sort((a, b) => a - b)
           .map((idx) => q.options[idx].label);
-        if (s.freeTextValue !== null) {
-          labels.push(s.freeTextValue);
-        }
+        if (s.freeTextValue !== null) labels.push(s.freeTextValue);
         answers[q.question] = labels.join(", ");
       } else if (s.freeTextValue !== null) {
         answers[q.question] = s.freeTextValue;
-      } else {
-        answers[q.question] = q.options[s.cursorIndex].label;
+      } else if (s.selectedIndex !== null) {
+        answers[q.question] = q.options[s.selectedIndex].label;
       }
     }
     return { questions: this.questions, answers, cancelled: false };
@@ -461,6 +487,7 @@ export class AskUserQuestionComponent implements Component {
     }
 
     const state = this.states[this.activeTab];
+    const q = this.questions[this.activeTab];
 
     // ── Edit mode: route to inline editor ──────────────────────────────────────
     if (state.inEditMode) {
@@ -473,8 +500,16 @@ export class AskUserQuestionComponent implements Component {
         const text = this.editor.getText().trim();
         if (text) {
           this.exitEditMode(true);
-          this.confirmAndAdvance();
+          // Multi-select: just return to options so user can still toggle checkboxes
+          // Single-select: auto-confirm since free-text is the only answer
+          if (!q.multiSelect) {
+            this.confirmAndAdvance();
+          } else {
+            this.tui.requestRender();
+          }
         } else {
+          // Empty text — clear any previously saved free-text answer
+          state.freeTextValue = null;
           this.exitEditMode(false);
           this.tui.requestRender();
         }
@@ -493,6 +528,7 @@ export class AskUserQuestionComponent implements Component {
     }
 
     if (!this.isSingle && matchesKey(data, Key.right)) {
+      this.autoConfirmIfAnswered();
       this.activeTab = (this.activeTab + 1) % this.totalTabs;
       this.invalidate();
       this.tui.requestRender();
@@ -500,6 +536,7 @@ export class AskUserQuestionComponent implements Component {
     }
 
     if (!this.isSingle && matchesKey(data, Key.left)) {
+      this.autoConfirmIfAnswered();
       this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
       this.invalidate();
       this.tui.requestRender();
@@ -516,20 +553,25 @@ export class AskUserQuestionComponent implements Component {
       return;
     }
 
-    const q = this.questions[this.activeTab];
     const opts = this.allOptions(q);
     const onOther = state.cursorIndex === opts.length - 1;
 
-    // "Type something..." — Enter or Space enters edit mode
+    // "Type something..." — Space or Tab opens the editor
+    // Enter confirms if there's already a saved free-text answer
     if (onOther) {
-      if (matchesKey(data, Key.enter) || matchesKey(data, Key.space)) {
+      if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) {
         this.enterEditMode();
+        return;
+      }
+      if (matchesKey(data, Key.enter) && state.freeTextValue !== null) {
+        this.confirmAndAdvance();
         return;
       }
     }
 
     if (q.multiSelect) {
       if (matchesKey(data, Key.space) && !onOther) {
+        // Space = toggle selection
         this.toggleSelected(state.cursorIndex);
         return;
       }
@@ -541,6 +583,9 @@ export class AskUserQuestionComponent implements Component {
       }
     } else {
       if (matchesKey(data, Key.enter) && !onOther) {
+        // Record explicit selection and clear any free-text
+        state.selectedIndex = state.cursorIndex;
+        state.freeTextValue = null;
         this.confirmAndAdvance();
         return;
       }
