@@ -174,7 +174,8 @@ export class AskUserQuestionComponent implements Component {
       if (isActive) {
         styled = t.bg("selectedBg", t.fg("text", label));
       } else if (s.confirmed) {
-        styled = t.fg("success", ` ■${header} `);
+        const snippet = truncateToWidth(this.getAnswerText(this.questions[i], s) ?? "", 10);
+        styled = t.fg("success", ` ■${header} `) + t.fg("dim", `"${snippet}" `);
       } else {
         styled = t.fg("muted", ` □${header} `);
       }
@@ -233,6 +234,11 @@ export class AskUserQuestionComponent implements Component {
         const suffix = state.inEditMode ? t.fg("accent", " ✎") : "";
         const labelColor = isSelected ? "accent" : "muted";
         add(`${prefix}  ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+        // Show saved free-text answer as a preview when confirmed and not editing
+        if (state.freeTextValue !== null && !state.inEditMode) {
+          const preview = truncateToWidth(state.freeTextValue, width - 8);
+          add(`     ${t.fg("success", "✓ ")}${t.fg("dim", `"${preview}"`)}`);
+        }
       } else {
         // Single-select
         const labelColor = isSelected ? "accent" : "text";
