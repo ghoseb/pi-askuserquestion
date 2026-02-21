@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Text, truncateToWidth } from "@mariozechner/pi-tui";
-import { InputSchema, type Question, type Result } from "./schema.ts";
 import { AskUserQuestionComponent } from "./component.ts";
+import { InputSchema, type Question, type Result } from "./schema.ts";
 
 // ── Dev test fixtures ─────────────────────────────────────────────────────────
 
@@ -42,7 +42,11 @@ const TEST_SCENARIOS: Record<string, Question[]> = {
     {
       question: "What deployment target?",
       header: "Deploy",
-      options: [{ label: "Docker" }, { label: "Bare metal" }, { label: "Serverless" }],
+      options: [
+        { label: "Docker" },
+        { label: "Bare metal" },
+        { label: "Serverless" },
+      ],
       multiSelect: false,
     },
     {
@@ -84,7 +88,8 @@ export default function (pi: ExtensionAPI) {
     description:
       "Visual test for ask_user_question UI. Args: single | multi | tabs | desc",
     handler: async (args, ctx) => {
-      const scenario = (args?.trim() || "single") as keyof typeof TEST_SCENARIOS;
+      const scenario = (args?.trim() ||
+        "single") as keyof typeof TEST_SCENARIOS;
       const questions = TEST_SCENARIOS[scenario];
       if (!questions) {
         ctx.ui.notify(
@@ -105,7 +110,9 @@ export default function (pi: ExtensionAPI) {
       }
 
       const summary = result.questions
-        .map((q) => `${q.header}: ${result.answers[q.question] ?? "(no answer)"}`)
+        .map(
+          (q) => `${q.header}: ${result.answers[q.question] ?? "(no answer)"}`,
+        )
         .join(" | ");
       ctx.ui.notify(`Result: ${summary}`, "success");
     },
@@ -131,7 +138,12 @@ Always use this tool instead of asking questions in plain text — it provides a
           pi.getActiveTools().filter((name) => name !== "ask_user_question"),
         );
         return {
-          content: [{ type: "text", text: "Error: ask_user_question requires an interactive session. The tool has been disabled for this session." }],
+          content: [
+            {
+              type: "text",
+              text: "Error: ask_user_question requires an interactive session. The tool has been disabled for this session.",
+            },
+          ],
           details: {
             questions: params.questions,
             answers: {},
@@ -198,11 +210,11 @@ Always use this tool instead of asking questions in plain text — it provides a
         const available = maxWidth - prefixLen;
         const display =
           available > 3 && answer.length > available
-            ? truncateToWidth(answer, available - 1) + "…"
+            ? `${truncateToWidth(answer, available - 1)}…`
             : answer;
         return (
           theme.fg("success", "✓ ") +
-          theme.fg("accent", q.header + ": ") +
+          theme.fg("accent", `${q.header}: `) +
           theme.fg("text", display)
         );
       });

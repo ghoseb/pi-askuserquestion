@@ -1,15 +1,15 @@
+import type { Theme } from "@mariozechner/pi-coding-agent";
 import {
   type Component,
   Editor,
   type EditorTheme,
   Key,
   matchesKey,
-  truncateToWidth,
   type TUI,
+  truncateToWidth,
   wrapTextWithAnsi,
 } from "@mariozechner/pi-tui";
-import { Theme } from "@mariozechner/pi-coding-agent";
-import type { Question, Option, Result } from "./schema.ts";
+import type { Option, Question, Result } from "./schema.ts";
 
 // ── TUILike ───────────────────────────────────────────────────────────────────
 // Minimal interface satisfied by both the real TUI and a test stub.
@@ -37,8 +37,8 @@ interface QuestionState {
 // kept in sync with the actual rendered prefix widths:
 //   single-select: prefix(1) + ' '(1) + check(1) + ' '(1) = 4 → indent = 5 (+ leading space)
 //   multi-select:  prefix(1) + ' '(1) + box(3)   + ' '(1) = 6 → indent = 7 (+ leading space)
-const SINGLE_INDENT = "     ";  // 5 spaces
-const MULTI_INDENT  = "       "; // 7 spaces
+const SINGLE_INDENT = "     "; // 5 spaces
+const MULTI_INDENT = "       "; // 7 spaces
 
 type DisplayOption = Option & { isOther?: true };
 
@@ -104,7 +104,10 @@ export class AskUserQuestionComponent implements Component {
   // ── Derived helpers ─────────────────────────────────────────────────────────
 
   private allOptions(q: Question): DisplayOption[] {
-    return [...q.options, { label: "Type something...", isOther: true as const }];
+    return [
+      ...q.options,
+      { label: "Type something...", isOther: true as const },
+    ];
   }
 
   private allConfirmed(): boolean {
@@ -145,7 +148,8 @@ export class AskUserQuestionComponent implements Component {
       return labels.length > 0 ? labels.join(", ") : null;
     }
     if (state.freeTextValue !== null) return state.freeTextValue;
-    if (state.selectedIndex !== null) return q.options[state.selectedIndex].label;
+    if (state.selectedIndex !== null)
+      return q.options[state.selectedIndex].label;
     return null;
   }
 
@@ -153,7 +157,7 @@ export class AskUserQuestionComponent implements Component {
   private styleTab(label: string, isActive: boolean, isReady: boolean): string {
     const t = this.theme;
     if (isActive) return t.bg("selectedBg", t.fg("text", label));
-    if (isReady)  return t.fg("success", label);
+    if (isReady) return t.fg("success", label);
     return t.fg("dim", label);
   }
 
@@ -193,7 +197,7 @@ export class AskUserQuestionComponent implements Component {
     return lines;
   }
 
-  private renderTabBar(width: number, add: (s: string) => void): void {
+  private renderTabBar(_width: number, add: (s: string) => void): void {
     const parts: string[] = [" "];
 
     for (let i = 0; i < this.questions.length; i++) {
@@ -203,7 +207,11 @@ export class AskUserQuestionComponent implements Component {
       const header = truncateToWidth(q.header, 12);
       // Active tab uses plain label; confirmed gets ■ prefix; unconfirmed gets blank prefix
       // (blank = same width as ■ — no layout shift)
-      const label = isActive ? ` ${header} ` : (s.confirmed ? ` ■${header} ` : `  ${header} `);
+      const label = isActive
+        ? ` ${header} `
+        : s.confirmed
+          ? ` ■${header} `
+          : `  ${header} `;
       parts.push(this.styleTab(label, isActive, s.confirmed));
     }
 
@@ -225,7 +233,10 @@ export class AskUserQuestionComponent implements Component {
     const indent = q.multiSelect ? MULTI_INDENT : SINGLE_INDENT;
 
     // Question text
-    for (const line of wrapTextWithAnsi(t.fg("text", ` ${q.question}`), width - 2)) {
+    for (const line of wrapTextWithAnsi(
+      t.fg("text", ` ${q.question}`),
+      width - 2,
+    )) {
       add(line);
     }
     add("");
@@ -236,7 +247,7 @@ export class AskUserQuestionComponent implements Component {
       const isSelected = i === state.cursorIndex;
       const isOther = opt.isOther === true;
       const prefix = isSelected ? t.fg("accent", ">") : " ";
-      const labelColor = isSelected ? "accent" : (isOther ? "muted" : "text");
+      const labelColor = isSelected ? "accent" : isOther ? "muted" : "text";
 
       if (isOther) {
         // "Type something..." — check/box indicator matches sibling rows
@@ -244,17 +255,26 @@ export class AskUserQuestionComponent implements Component {
         const suffix = state.inEditMode ? t.fg("accent", " ✎") : "";
         if (q.multiSelect) {
           const box = hasFreeText ? t.fg("success", "[✓]") : t.fg("dim", "[ ]");
-          add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+          add(
+            `${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`,
+          );
         } else {
           const check = hasFreeText ? t.fg("success", "✓") : " ";
-          add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+          add(
+            `${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`,
+          );
         }
         if (hasFreeText) {
-          const preview = truncateToWidth(state.freeTextValue!, width - indent.length);
+          const preview = truncateToWidth(
+            state.freeTextValue ?? "",
+            width - indent.length,
+          );
           add(`${indent}${t.fg("dim", `"${preview}"`)}`);
         }
       } else if (q.multiSelect) {
-        const box = state.selectedIndices.has(i) ? t.fg("accent", "[✓]") : t.fg("dim", "[ ]");
+        const box = state.selectedIndices.has(i)
+          ? t.fg("accent", "[✓]")
+          : t.fg("dim", "[ ]");
         add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
       } else {
         const check = state.selectedIndex === i ? t.fg("success", "✓") : " ";
@@ -262,7 +282,10 @@ export class AskUserQuestionComponent implements Component {
       }
 
       if (!isOther && opt.description) {
-        for (const line of wrapTextWithAnsi(t.fg("muted", opt.description), width - indent.length)) {
+        for (const line of wrapTextWithAnsi(
+          t.fg("muted", opt.description),
+          width - indent.length,
+        )) {
           add(`${indent}${line}`);
         }
       }
@@ -294,14 +317,17 @@ export class AskUserQuestionComponent implements Component {
     }
   }
 
-  private renderSubmitTab(width: number, add: (s: string) => void): void {
+  private renderSubmitTab(_width: number, add: (s: string) => void): void {
     const t = this.theme;
 
     for (let i = 0; i < this.questions.length; i++) {
       const q = this.questions[i];
       const answer = this.resolveAnswer(q, this.states[i]);
       const header = t.fg("muted", ` ${truncateToWidth(q.header, 12)}: `);
-      add(header + (answer !== null ? t.fg("text", answer) : t.fg("warning", "—")));
+      add(
+        header +
+          (answer !== null ? t.fg("text", answer) : t.fg("warning", "—")),
+      );
     }
 
     add("");
@@ -401,9 +427,10 @@ export class AskUserQuestionComponent implements Component {
       this.submit();
       return;
     }
-    this.activeTab = this.activeTab < this.questions.length - 1
-      ? this.activeTab + 1
-      : this.questions.length; // Submit tab
+    this.activeTab =
+      this.activeTab < this.questions.length - 1
+        ? this.activeTab + 1
+        : this.questions.length; // Submit tab
     this.refresh();
   }
 
@@ -434,11 +461,25 @@ export class AskUserQuestionComponent implements Component {
     // ── Submit tab ─────────────────────────────────────────────────────────────
     // Must be checked before accessing states[activeTab] — it's out of bounds here.
     if (!this.isSingle && this.activeTab === this.questions.length) {
-      if (matchesKey(data, Key.enter))  { if (this.allConfirmed()) this.submit(); return; }
-      if (matchesKey(data, Key.escape)) { this.cancel(); return; }
+      if (matchesKey(data, Key.enter)) {
+        if (this.allConfirmed()) this.submit();
+        return;
+      }
+      if (matchesKey(data, Key.escape)) {
+        this.cancel();
+        return;
+      }
       // → wraps to Q1, ← wraps to last question tab (not back to Submit)
-      if (matchesKey(data, Key.right))  { this.activeTab = 0; this.refresh(); return; }
-      if (matchesKey(data, Key.left))   { this.activeTab = this.questions.length - 1; this.refresh(); return; }
+      if (matchesKey(data, Key.right)) {
+        this.activeTab = 0;
+        this.refresh();
+        return;
+      }
+      if (matchesKey(data, Key.left)) {
+        this.activeTab = this.questions.length - 1;
+        this.refresh();
+        return;
+      }
       return;
     }
 
@@ -447,7 +488,10 @@ export class AskUserQuestionComponent implements Component {
 
     // ── Edit mode ──────────────────────────────────────────────────────────────
     if (state.inEditMode) {
-      if (matchesKey(data, Key.escape)) { this.exitEditMode(); return; }
+      if (matchesKey(data, Key.escape)) {
+        this.exitEditMode();
+        return;
+      }
       if (matchesKey(data, Key.enter)) {
         const text = this.editor.getText().trim();
         if (text) {
@@ -464,7 +508,10 @@ export class AskUserQuestionComponent implements Component {
     }
 
     // ── Question tab ───────────────────────────────────────────────────────────
-    if (matchesKey(data, Key.escape)) { this.cancel(); return; }
+    if (matchesKey(data, Key.escape)) {
+      this.cancel();
+      return;
+    }
 
     if (!this.isSingle && matchesKey(data, Key.right)) {
       this.autoConfirmIfAnswered();
@@ -479,23 +526,41 @@ export class AskUserQuestionComponent implements Component {
       return;
     }
 
-    if (matchesKey(data, Key.up))   { this.moveCursor(-1); return; }
-    if (matchesKey(data, Key.down)) { this.moveCursor(1);  return; }
+    if (matchesKey(data, Key.up)) {
+      this.moveCursor(-1);
+      return;
+    }
+    if (matchesKey(data, Key.down)) {
+      this.moveCursor(1);
+      return;
+    }
 
     const opts = this.allOptions(q);
     const onOther = state.cursorIndex === opts.length - 1;
 
     // "Type something..." row
     if (onOther) {
-      if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) { this.enterEditMode(); return; }
-      if (matchesKey(data, Key.enter) && state.freeTextValue !== null) { this.confirmAndAdvance(); return; }
+      if (matchesKey(data, Key.space) || matchesKey(data, Key.tab)) {
+        this.enterEditMode();
+        return;
+      }
+      if (matchesKey(data, Key.enter) && state.freeTextValue !== null) {
+        this.confirmAndAdvance();
+        return;
+      }
       return;
     }
 
     // Regular option rows
     if (q.multiSelect) {
-      if (matchesKey(data, Key.space)) { this.toggleSelected(state.cursorIndex); return; }
-      if (matchesKey(data, Key.enter) && (state.selectedIndices.size > 0 || state.freeTextValue !== null)) {
+      if (matchesKey(data, Key.space)) {
+        this.toggleSelected(state.cursorIndex);
+        return;
+      }
+      if (
+        matchesKey(data, Key.enter) &&
+        (state.selectedIndices.size > 0 || state.freeTextValue !== null)
+      ) {
         this.confirmAndAdvance();
       }
     } else {

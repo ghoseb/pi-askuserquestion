@@ -1,10 +1,11 @@
-import { Type, type Static } from "@sinclair/typebox";
+import { type Static, Type } from "@sinclair/typebox";
 
 // ── Input (what the LLM sends) ────────────────────────────────────────────────
 
 export const OptionSchema = Type.Object({
   label: Type.String({
-    description: "Display label shown to the user and returned as the answer value",
+    description:
+      "Display label shown to the user and returned as the answer value",
   }),
   description: Type.Optional(
     Type.String({
@@ -42,7 +43,6 @@ export const InputSchema = Type.Object({
 
 export type Option = Static<typeof OptionSchema>;
 export type Question = Static<typeof QuestionSchema>;
-export type Input = Static<typeof InputSchema>;
 
 // ── Output (details returned to the LLM and used in renderResult) ─────────────
 //

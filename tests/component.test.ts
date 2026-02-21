@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { Type } from "@sinclair/typebox";
+import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Key, matchesKey } from "@mariozechner/pi-tui";
-import { AskUserQuestionComponent } from "../src/component.ts";
+import { Type } from "@sinclair/typebox";
+import { describe, expect, it } from "vitest";
+import { AskUserQuestionComponent, type TUILike } from "../src/component.ts";
 import type { Question, Result } from "../src/schema.ts";
 
 // ── Smoke test ────────────────────────────────────────────────────────────────
@@ -56,11 +57,7 @@ const singleSelect: Question = {
 const multiSelectQ: Question = {
   question: "Which features should we implement?",
   header: "Features",
-  options: [
-    { label: "Auth" },
-    { label: "Search" },
-    { label: "Export" },
-  ],
+  options: [{ label: "Auth" }, { label: "Search" }, { label: "Export" }],
   multiSelect: true,
 };
 
@@ -86,15 +83,18 @@ function make(
 ): AskUserQuestionComponent {
   return new AskUserQuestionComponent(
     questions,
-    mockTui as any,
-    mockTheme as any,
+    mockTui as TUILike,
+    mockTheme as unknown as Theme,
     done,
   );
 }
 
 /** Strip ANSI escape codes from a string */
 function stripAnsi(s: string): string {
-  return s.replace(/\x1b\[[0-9;]*m/g, "").replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching ESC sequences
+  const noSgr = s.replace(/\u001b\[[0-9;]*m/g, "");
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching ESC sequences
+  return noSgr.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
 }
 
 // ── Render structure — single question ───────────────────────────────────────
@@ -108,7 +108,9 @@ describe("render — single question", () => {
 
   it("renders the question text", () => {
     const lines = make([singleSelect]).render(80);
-    expect(lines.some((l) => l.includes("Which database should we use?"))).toBe(true);
+    expect(lines.some((l) => l.includes("Which database should we use?"))).toBe(
+      true,
+    );
   });
 
   it("renders all option labels", () => {
@@ -125,7 +127,9 @@ describe("render — single question", () => {
 
   it("renders option descriptions", () => {
     const lines = make([singleSelect]).render(80);
-    expect(lines.some((l) => l.includes("Battle-tested relational DB"))).toBe(true);
+    expect(lines.some((l) => l.includes("Battle-tested relational DB"))).toBe(
+      true,
+    );
   });
 
   it("does not render a tab bar", () => {
@@ -191,7 +195,9 @@ describe("render — multi-select", () => {
 
   it("does not render checkboxes for single-select", () => {
     const lines = make([singleSelect]).render(80);
-    expect(lines.some((l) => l.includes("[ ]") || l.includes("[✓]"))).toBe(false);
+    expect(lines.some((l) => l.includes("[ ]") || l.includes("[✓]"))).toBe(
+      false,
+    );
   });
 });
 
@@ -261,54 +267,72 @@ describe("handleInput — cursor navigation", () => {
 describe("handleInput — single-select confirm", () => {
   it("resolves with first option on immediate Enter", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.enter);
     expect(resolved).not.toBeNull();
-    expect(resolved!.cancelled).toBe(false);
-    expect(resolved!.answers["Which database should we use?"]).toBe("PostgreSQL");
+    expect(resolved?.cancelled).toBe(false);
+    expect(resolved?.answers["Which database should we use?"]).toBe(
+      "PostgreSQL",
+    );
   });
 
   it("resolves with second option after ↓ Enter", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.enter);
-    expect(resolved!.answers["Which database should we use?"]).toBe("SQLite");
+    expect(resolved?.answers["Which database should we use?"]).toBe("SQLite");
   });
 
   it("result has cancelled: false", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.enter);
-    expect(resolved!.cancelled).toBe(false);
+    expect(resolved?.cancelled).toBe(false);
   });
 
   it("result answers keyed by full question text, not header", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.enter);
+    // biome-ignore lint/style/noNonNullAssertion: we assert not.toBeNull() above
     expect("Which database should we use?" in resolved!.answers).toBe(true);
+    // biome-ignore lint/style/noNonNullAssertion: we assert not.toBeNull() above
     expect("Database" in resolved!.answers).toBe(false);
   });
 
   it("result has correct questions pass-through", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.enter);
-    expect(resolved!.questions).toHaveLength(1);
-    expect(resolved!.questions[0].header).toBe("Database");
+    expect(resolved?.questions).toHaveLength(1);
+    expect(resolved?.questions[0].header).toBe("Database");
   });
 
   it("Space does not confirm in single-select mode", () => {
     let called = false;
-    const c = make([singleSelect], () => { called = true; });
+    const c = make([singleSelect], () => {
+      called = true;
+    });
     c.handleInput(INPUT.space);
     expect(called).toBe(false);
   });
 
   it("done is called exactly once", () => {
     let count = 0;
-    const c = make([singleSelect], () => { count++; });
+    const c = make([singleSelect], () => {
+      count++;
+    });
     c.handleInput(INPUT.enter);
     c.handleInput(INPUT.enter); // second call should be no-op (already resolved)
     expect(count).toBe(1);
@@ -319,15 +343,19 @@ describe("handleInput — single-select confirm", () => {
 
 describe("handleInput — cancellation", () => {
   it("resolves null on Esc", () => {
-    let resolved: Result | null | undefined = undefined;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    let resolved: Result | null | undefined;
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.escape);
     expect(resolved).toBeNull();
   });
 
   it("done called exactly once on Esc", () => {
     let count = 0;
-    const c = make([singleSelect], () => { count++; });
+    const c = make([singleSelect], () => {
+      count++;
+    });
     c.handleInput(INPUT.escape);
     c.handleInput(INPUT.escape);
     expect(count).toBe(1);
@@ -341,7 +369,9 @@ describe("handleInput — multi-select", () => {
     const c = make([multiSelectQ]);
     c.handleInput(INPUT.space);
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("[✓]") && l.includes("Auth"))).toBe(true);
+    expect(lines.some((l) => l.includes("[✓]") && l.includes("Auth"))).toBe(
+      true,
+    );
   });
 
   it("Space again deselects — shows [ ]", () => {
@@ -349,7 +379,11 @@ describe("handleInput — multi-select", () => {
     c.handleInput(INPUT.space);
     c.handleInput(INPUT.space);
     const lines = c.render(80);
-    expect(lines.some((l) => (l.includes("[ ]") || l.includes("□")) && l.includes("Auth"))).toBe(true);
+    expect(
+      lines.some(
+        (l) => (l.includes("[ ]") || l.includes("□")) && l.includes("Auth"),
+      ),
+    ).toBe(true);
   });
 
   it("can select multiple options", () => {
@@ -358,20 +392,28 @@ describe("handleInput — multi-select", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // select Search
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("[✓]") && l.includes("Auth"))).toBe(true);
-    expect(lines.some((l) => l.includes("[✓]") && l.includes("Search"))).toBe(true);
+    expect(lines.some((l) => l.includes("[✓]") && l.includes("Auth"))).toBe(
+      true,
+    );
+    expect(lines.some((l) => l.includes("[✓]") && l.includes("Search"))).toBe(
+      true,
+    );
   });
 
   it("toggling does not call done", () => {
     let called = false;
-    const c = make([multiSelectQ], () => { called = true; });
+    const c = make([multiSelectQ], () => {
+      called = true;
+    });
     c.handleInput(INPUT.space);
     expect(called).toBe(false);
   });
 
   it("Enter with nothing selected is a no-op", () => {
     let called = false;
-    const c = make([multiSelectQ], () => { called = true; });
+    const c = make([multiSelectQ], () => {
+      called = true;
+    });
     c.handleInput(INPUT.enter);
     expect(called).toBe(false);
     // Nothing selected either
@@ -381,38 +423,53 @@ describe("handleInput — multi-select", () => {
 
   it("Enter with something selected confirms", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.space); // select Auth
     c.handleInput(INPUT.enter); // confirm
     expect(resolved).not.toBeNull();
-    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "Auth",
+    );
   });
 
   it("Enter after selecting options 1 and 3 resolves with joined labels sorted by index", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.space); // select Auth (index 0)
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // select Export (index 2)
     c.handleInput(INPUT.enter); // confirm
-    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth, Export");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "Auth, Export",
+    );
   });
 
   it("result has cancelled: false", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.space);
     c.handleInput(INPUT.enter);
-    expect(resolved!.cancelled).toBe(false);
+    expect(resolved?.cancelled).toBe(false);
   });
 
   it("result answers keyed by full question text", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.space);
     c.handleInput(INPUT.enter);
-    expect("Which features should we implement?" in resolved!.answers).toBe(true);
+    // biome-ignore lint/style/noNonNullAssertion: we assert not.toBeNull() above
+    expect("Which features should we implement?" in resolved!.answers).toBe(
+      true,
+    );
   });
 });
 
@@ -447,7 +504,9 @@ describe("handleInput — free-text mode", () => {
 
   it("Esc in edit mode does not call done", () => {
     let called = false;
-    const c = make([singleSelect], () => { called = true; });
+    const c = make([singleSelect], () => {
+      called = true;
+    });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
     c.handleInput(INPUT.escape);
@@ -459,7 +518,7 @@ describe("handleInput — free-text mode", () => {
     // Type free-text on Q1
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
-    "hello".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "hello") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save "hello", back to options (single-select: auto-confirms + advances)
     // Navigate back, re-open editor, clear text
     c.handleInput(INPUT.left);
@@ -475,7 +534,9 @@ describe("handleInput — free-text mode", () => {
 
   it("Enter with empty text in edit mode exits without confirming", () => {
     let called = false;
-    const c = make([singleSelect], () => { called = true; });
+    const c = make([singleSelect], () => {
+      called = true;
+    });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
     c.handleInput(INPUT.enter); // enter with empty text
@@ -487,14 +548,16 @@ describe("handleInput — free-text mode", () => {
 
   it("typing then Enter confirms with typed text", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
-    "hello".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "hello") c.handleInput(ch);
     c.handleInput(INPUT.enter); // confirm
     expect(resolved).not.toBeNull();
-    expect(resolved!.cancelled).toBe(false);
-    expect(resolved!.answers["Which database should we use?"]).toBe("hello");
+    expect(resolved?.cancelled).toBe(false);
+    expect(resolved?.answers["Which database should we use?"]).toBe("hello");
   });
 });
 
@@ -513,7 +576,12 @@ describe("handleInput — multi-question tab navigation", () => {
     c.handleInput(INPUT.right); // Q2
     c.handleInput(INPUT.right); // Submit
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("Press Enter to submit") || l.includes("Still needed"))).toBe(true);
+    expect(
+      lines.some(
+        (l) =>
+          l.includes("Press Enter to submit") || l.includes("Still needed"),
+      ),
+    ).toBe(true);
   });
 
   it("Shift+Tab retreats from Q2 to Q1", () => {
@@ -528,7 +596,12 @@ describe("handleInput — multi-question tab navigation", () => {
     const c = make([singleSelect, multiSelectQ]);
     c.handleInput(INPUT.left);
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("Press Enter to submit") || l.includes("Still needed"))).toBe(true);
+    expect(
+      lines.some(
+        (l) =>
+          l.includes("Press Enter to submit") || l.includes("Still needed"),
+      ),
+    ).toBe(true);
   });
 
   it("Tab on Submit tab wraps to Q1", () => {
@@ -560,15 +633,19 @@ describe("handleInput — multi-question tab navigation", () => {
 describe("handleInput — Submit tab", () => {
   it("Enter on Submit tab when not all confirmed is a no-op", () => {
     let called = false;
-    const c = make([singleSelect, multiSelectQ], () => { called = true; });
+    const c = make([singleSelect, multiSelectQ], () => {
+      called = true;
+    });
     c.handleInput(INPUT.left); // go to Submit tab
     c.handleInput(INPUT.enter);
     expect(called).toBe(false);
   });
 
   it("Esc on Submit tab cancels", () => {
-    let resolved: Result | null | undefined = undefined;
-    const c = make([singleSelect, multiSelectQ], (r) => { resolved = r; });
+    let resolved: Result | null | undefined;
+    const c = make([singleSelect, multiSelectQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.left);
     c.handleInput(INPUT.escape);
     expect(resolved).toBeNull();
@@ -576,7 +653,9 @@ describe("handleInput — Submit tab", () => {
 
   it("Enter on Submit tab when all confirmed resolves", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect, multiSelectQ], (r) => { resolved = r; });
+    const c = make([singleSelect, multiSelectQ], (r) => {
+      resolved = r;
+    });
     // Answer Q1
     c.handleInput(INPUT.enter); // confirm first option, auto-advance to Q2
     // Answer Q2
@@ -585,7 +664,7 @@ describe("handleInput — Submit tab", () => {
     // Submit
     c.handleInput(INPUT.enter);
     expect(resolved).not.toBeNull();
-    expect(resolved!.cancelled).toBe(false);
+    expect(resolved?.cancelled).toBe(false);
   });
 });
 
@@ -594,7 +673,9 @@ describe("handleInput — Submit tab", () => {
 describe("full round-trip", () => {
   it("two questions — correct answers and structure", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect, multiSelectQ], (r) => { resolved = r; });
+    const c = make([singleSelect, multiSelectQ], (r) => {
+      resolved = r;
+    });
 
     // Answer Q1: ↓ then Enter → SQLite
     c.handleInput(INPUT.down);
@@ -611,10 +692,12 @@ describe("full round-trip", () => {
     c.handleInput(INPUT.enter);
 
     expect(resolved).not.toBeNull();
-    expect(resolved!.cancelled).toBe(false);
-    expect(resolved!.answers["Which database should we use?"]).toBe("SQLite");
-    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth, Export");
-    expect(resolved!.questions).toHaveLength(2);
+    expect(resolved?.cancelled).toBe(false);
+    expect(resolved?.answers["Which database should we use?"]).toBe("SQLite");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "Auth, Export",
+    );
+    expect(resolved?.questions).toHaveLength(2);
   });
 
   it("four questions — all answered", () => {
@@ -626,7 +709,9 @@ describe("full round-trip", () => {
     });
     const questions = [q(1), q(2), q(3), q(4)];
     let resolved: Result | null = null;
-    const c = make(questions, (r) => { resolved = r; });
+    const c = make(questions, (r) => {
+      resolved = r;
+    });
 
     // Answer all 4 — each Enter confirms and auto-advances
     c.handleInput(INPUT.enter); // Q1 → Q2
@@ -635,14 +720,16 @@ describe("full round-trip", () => {
     c.handleInput(INPUT.enter); // Q4 → Submit
     c.handleInput(INPUT.enter); // Submit
 
-    expect(resolved!.questions).toHaveLength(4);
-    expect(Object.keys(resolved!.answers)).toHaveLength(4);
-    expect(resolved!.cancelled).toBe(false);
+    expect(resolved?.questions).toHaveLength(4);
+    expect(Object.keys(resolved?.answers)).toHaveLength(4);
+    expect(resolved?.cancelled).toBe(false);
   });
 
   it("single question confirms immediately without Submit tab", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.enter);
     // Should resolve immediately — no Submit tab needed
     expect(resolved).not.toBeNull();
@@ -654,7 +741,12 @@ describe("full round-trip", () => {
     // Should now be on Q2 (Features), not Submit
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Which features"))).toBe(true);
-    expect(lines.some((l) => l.includes("Press Enter to submit") || l.includes("Still needed"))).toBe(false);
+    expect(
+      lines.some(
+        (l) =>
+          l.includes("Press Enter to submit") || l.includes("Still needed"),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -663,44 +755,56 @@ describe("full round-trip", () => {
 describe("multi-select + free-text combined", () => {
   it("result combines checked labels and free-text", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.space); // select Auth (index 0)
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text, return to options (cursor still on Type something...)
     // Move cursor to a real option, then confirm
     c.handleInput(INPUT.up); // cursor on Export (index 2)
     c.handleInput(INPUT.enter); // confirm (Auth selected + free-text saved)
-    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth, mytext");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "Auth, mytext",
+    );
   });
 
   it("Enter on Type something... with saved free-text confirms immediately", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "hello".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "hello") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text, back to options
     // cursor still on Type something... — Enter should confirm now
     c.handleInput(INPUT.enter);
     expect(resolved).not.toBeNull();
-    expect(resolved!.answers["Which features should we implement?"]).toBe("hello");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "hello",
+    );
   });
 
   it("Enter confirms when only free-text typed and no boxes checked", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "onlytext".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "onlytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text, return to options
     // Move cursor off "Type something..." to a regular option, then confirm
     c.handleInput(INPUT.up);
     c.handleInput(INPUT.enter); // confirm (freeTextValue set, no checkboxes)
-    expect(resolved!.answers["Which features should we implement?"]).toBe("onlytext");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "onlytext",
+    );
   });
 
   it("Submit tab renders combined answer text", () => {
@@ -711,15 +815,17 @@ describe("multi-select + free-text combined", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "extra".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "extra") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text, return to options (cursor on Type something...)
-    c.handleInput(INPUT.up);    // move cursor to a real option
+    c.handleInput(INPUT.up); // move cursor to a real option
     c.handleInput(INPUT.enter); // confirm Q1 (Auth + extra), advance to Q2
     // Answer Q2 (single-select)
     c.handleInput(INPUT.enter); // confirm Q2, advance to Submit
     // Now on Submit tab — render and check answer text
     const lines = c.render(80);
-    expect(lines.some((l) => l.includes("Auth") && l.includes("extra"))).toBe(true);
+    expect(lines.some((l) => l.includes("Auth") && l.includes("extra"))).toBe(
+      true,
+    );
   });
 });
 
@@ -728,7 +834,9 @@ describe("multi-select + free-text combined", () => {
 describe("auto-confirm on → navigation", () => {
   it("multi-select: navigating → with selections auto-confirms the question", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ, twoOptionsQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.space); // select Auth on Q1
     c.handleInput(INPUT.right); // navigate to Q2 — should auto-confirm Q1
     // Confirm Q2 (single-select: Enter sets selectedIndex, confirms, advances to Submit)
@@ -736,12 +844,16 @@ describe("auto-confirm on → navigation", () => {
     // Now on Submit tab — submit
     c.handleInput(INPUT.enter);
     expect(resolved).not.toBeNull();
-    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "Auth",
+    );
   });
 
   it("multi-select: navigating → with nothing selected does NOT auto-confirm", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ, twoOptionsQ], (r) => {
+      resolved = r;
+    });
     c.handleInput(INPUT.right); // navigate away with nothing selected
     c.handleInput(INPUT.right); // navigate to Submit tab
     c.handleInput(INPUT.enter); // try to submit — should not resolve (Q1 unconfirmed)
@@ -750,8 +862,10 @@ describe("auto-confirm on → navigation", () => {
 
   it("single-select: navigating → without explicit Enter does NOT auto-confirm", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect, twoOptionsQ], (r) => { resolved = r; });
-    c.handleInput(INPUT.down);  // move cursor to SQLite
+    const c = make([singleSelect, twoOptionsQ], (r) => {
+      resolved = r;
+    });
+    c.handleInput(INPUT.down); // move cursor to SQLite
     c.handleInput(INPUT.right); // navigate away — cursor position is NOT an answer
     c.handleInput(INPUT.enter); // confirm Q2
     c.handleInput(INPUT.right); // go to Submit
@@ -765,11 +879,13 @@ describe("auto-confirm on → navigation", () => {
 describe("multi-select: un-confirm when all answers removed", () => {
   it("deselecting all checkboxes resets confirmed — Submit blocks", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ, twoOptionsQ], (r) => {
+      resolved = r;
+    });
     // Confirm Q1 with Auth
     c.handleInput(INPUT.space); // select Auth
     c.handleInput(INPUT.enter); // confirm, advance to Q2
-    c.handleInput(INPUT.left);  // back to Q1
+    c.handleInput(INPUT.left); // back to Q1
     // Deselect Auth — nothing left
     c.handleInput(INPUT.space);
     c.handleInput(INPUT.right); // to Submit (Q2 unconfirmed too, but test the Q1 un-confirm)
@@ -779,15 +895,17 @@ describe("multi-select: un-confirm when all answers removed", () => {
 
   it("clearing free-text with no checkboxes resets confirmed — Submit blocks", () => {
     let resolved: Result | null = null;
-    const c = make([multiSelectQ, twoOptionsQ], (r) => { resolved = r; });
+    const c = make([multiSelectQ, twoOptionsQ], (r) => {
+      resolved = r;
+    });
     // Confirm Q1 with free-text only
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
-    "hello".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "hello") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save
     c.handleInput(INPUT.up);
     c.handleInput(INPUT.enter); // confirm, advance to Q2
-    c.handleInput(INPUT.left);  // back to Q1
+    c.handleInput(INPUT.left); // back to Q1
     // Clear free-text
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // re-open editor (pre-filled)
@@ -804,11 +922,13 @@ describe("multi-select: un-confirm when all answers removed", () => {
 describe("single-select: free-text then pick regular option", () => {
   it("selecting a regular option after free-text typed uses the option label", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     // Type free-text first
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // confirm free-text — resolves for single question
     // For this test we need a two-question setup so we can navigate back
     expect(resolved).not.toBeNull();
@@ -816,7 +936,12 @@ describe("single-select: free-text then pick regular option", () => {
 
   it("typing free-text clears the ✓ on the previously selected regular option", () => {
     // Three questions so Q1 auto-advance goes to Q2, not Submit
-    const q3: Question = { question: "Q3?", header: "Q3", options: [{ label: "X" }, { label: "Y" }], multiSelect: false };
+    const q3: Question = {
+      question: "Q3?",
+      header: "Q3",
+      options: [{ label: "X" }, { label: "Y" }],
+      multiSelect: false,
+    };
     const c = make([singleSelect, twoOptionsQ, q3]);
     // Confirm Q1 with PostgreSQL (Enter → selectedIndex=0, advance to Q2)
     c.handleInput(INPUT.enter);
@@ -825,11 +950,13 @@ describe("single-select: free-text then pick regular option", () => {
     // Now on Q1: cursor on first option, selectedIndex=0 (✓ on PostgreSQL)
     // Verify ✓ is on PostgreSQL before typing free-text
     let lines = c.render(80);
-    expect(lines.some((l) => l.includes("✓") && l.includes("PostgreSQL"))).toBe(true);
+    expect(lines.some((l) => l.includes("✓") && l.includes("PostgreSQL"))).toBe(
+      true,
+    );
     // Type free-text
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // save free-text — clears selectedIndex, auto-advances to Q2
     // Navigate back to Q1 to verify ✓ is gone from PostgreSQL
     c.handleInput(INPUT.left);
@@ -838,18 +965,22 @@ describe("single-select: free-text then pick regular option", () => {
     expect(pgLines.length).toBeGreaterThan(0);
     for (const l of pgLines) expect(l).not.toMatch(/✓/);
     // ✓ should be on the "Type something..." row, preview text on the line below
-    expect(lines.some((l) => l.includes("✓") && l.includes("Type something"))).toBe(true);
+    expect(
+      lines.some((l) => l.includes("✓") && l.includes("Type something")),
+    ).toBe(true);
     expect(lines.some((l) => l.includes("mytext"))).toBe(true);
   });
 
   it("navigating back and selecting a regular option clears free-text", () => {
     let resolved: Result | null = null;
     // Use two questions so Q1 doesn't resolve immediately
-    const c = make([singleSelect, twoOptionsQ], (r) => { resolved = r; });
+    const c = make([singleSelect, twoOptionsQ], (r) => {
+      resolved = r;
+    });
     // Type free-text on Q1
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
     c.handleInput(INPUT.space); // open editor
-    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "mytext") c.handleInput(ch);
     c.handleInput(INPUT.enter); // confirm free-text, advance to Q2
     // Navigate back to Q1
     c.handleInput(INPUT.left);
@@ -859,7 +990,9 @@ describe("single-select: free-text then pick regular option", () => {
     // Advance to Q2 and submit
     c.handleInput(INPUT.enter); // confirm Q2
     c.handleInput(INPUT.enter); // submit
-    expect(resolved!.answers["Which database should we use?"]).toBe("PostgreSQL");
+    expect(resolved?.answers["Which database should we use?"]).toBe(
+      "PostgreSQL",
+    );
   });
 });
 
@@ -912,26 +1045,36 @@ describe("edge cases", () => {
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("[✓]") && l.includes("A"))).toBe(true);
     expect(lines.some((l) => l.includes("[✓]") && l.includes("C"))).toBe(true);
-    expect(lines.some((l) => (l.includes("[ ]") || l.includes("□")) && l.includes("B"))).toBe(true);
+    expect(
+      lines.some(
+        (l) => (l.includes("[ ]") || l.includes("□")) && l.includes("B"),
+      ),
+    ).toBe(true);
   });
 
   it("free-text Esc then selecting option uses option label, not typed text", () => {
     let resolved: Result | null = null;
-    const c = make([singleSelect], (r) => { resolved = r; });
+    const c = make([singleSelect], (r) => {
+      resolved = r;
+    });
     // Go to "Type something...", enter edit mode, type, then Esc
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
     c.handleInput(INPUT.space); // open editor
-    "hello".split("").forEach((ch) => c.handleInput(ch));
+    for (const ch of "hello") c.handleInput(ch);
     c.handleInput(INPUT.escape); // exit WITHOUT saving
     // Navigate back to option 1, confirm
     for (let i = 0; i < 10; i++) c.handleInput(INPUT.up);
     c.handleInput(INPUT.enter);
-    expect(resolved!.answers["Which database should we use?"]).toBe("PostgreSQL");
+    expect(resolved?.answers["Which database should we use?"]).toBe(
+      "PostgreSQL",
+    );
   });
 
   it("done called exactly once on multi-select confirm", () => {
     let count = 0;
-    const c = make([multiSelectQ], () => { count++; });
+    const c = make([multiSelectQ], () => {
+      count++;
+    });
     c.handleInput(INPUT.space);
     c.handleInput(INPUT.enter);
     expect(count).toBe(1);
@@ -939,7 +1082,9 @@ describe("edge cases", () => {
 
   it("done called exactly once on Submit tab", () => {
     let count = 0;
-    const c = make([singleSelect, multiSelectQ], () => { count++; });
+    const c = make([singleSelect, multiSelectQ], () => {
+      count++;
+    });
     c.handleInput(INPUT.enter); // confirm Q1
     c.handleInput(INPUT.space);
     c.handleInput(INPUT.enter); // confirm Q2 → Submit

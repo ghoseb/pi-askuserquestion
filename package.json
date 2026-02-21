@@ -6,13 +6,22 @@
   "packageManager": "pnpm@10.30.1",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check": "pnpm check:biome && pnpm check:dupes && pnpm check:knip",
+    "check:biome": "biome check --error-on-warnings src/ tests/",
+    "check:dupes": "jscpd src/ --min-lines 8 --min-tokens 50 --reporters console",
+    "check:knip": "knip"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
     "@types/node": "^22.0.0",
+    "jscpd": "^4.0.8",
+    "knip": "^5.85.0",
     "vitest": "^3.0.0"
   },
   "peerDependencies": {
