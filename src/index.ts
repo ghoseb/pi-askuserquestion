@@ -79,46 +79,37 @@ const TEST_SCENARIOS: Record<string, Question[]> = {
 };
 
 export default function (pi: ExtensionAPI) {
-  // ── Dev flag: --test-ask enables the /test-ask command ──────────────────────
-  pi.registerFlag("test-ask", {
-    description: "Enable /test-ask dev command for visual UI testing",
-    type: "boolean",
-    default: false,
-  });
-
-  // ── /test-ask dev command — registered at load time ──────────────────────────
-  if (pi.getFlag("--test-ask")) {
-    pi.registerCommand("test-ask", {
-      description:
-        "Visual test for ask_user_question UI. Args: single | multi | tabs | desc",
-      handler: async (args, ctx) => {
-        const scenario = (args?.trim() || "single") as keyof typeof TEST_SCENARIOS;
-        const questions = TEST_SCENARIOS[scenario];
-        if (!questions) {
-          ctx.ui.notify(
-            `Unknown scenario "${scenario}". Use: single | multi | tabs | desc`,
-            "warning",
-          );
-          return;
-        }
-
-        const result = await ctx.ui.custom<Result | null>(
-          (tui, theme, _kb, done) =>
-            new AskUserQuestionComponent(questions, tui, theme, done),
+  // ── /test-ask dev command ─────────────────────────────────────────────────────
+  pi.registerCommand("test-ask", {
+    description:
+      "Visual test for ask_user_question UI. Args: single | multi | tabs | desc",
+    handler: async (args, ctx) => {
+      const scenario = (args?.trim() || "single") as keyof typeof TEST_SCENARIOS;
+      const questions = TEST_SCENARIOS[scenario];
+      if (!questions) {
+        ctx.ui.notify(
+          `Unknown scenario "${scenario}". Use: single | multi | tabs | desc`,
+          "warning",
         );
+        return;
+      }
 
-        if (result === null || result.cancelled) {
-          ctx.ui.notify("Cancelled", "info");
-          return;
-        }
+      const result = await ctx.ui.custom<Result | null>(
+        (tui, theme, _kb, done) =>
+          new AskUserQuestionComponent(questions, tui, theme, done),
+      );
 
-        const summary = result.questions
-          .map((q) => `${q.header}: ${result.answers[q.question] ?? "(no answer)"}`)
-          .join(" | ");
-        ctx.ui.notify(`Result: ${summary}`, "success");
-      },
-    });
-  }
+      if (result === null || result.cancelled) {
+        ctx.ui.notify("Cancelled", "info");
+        return;
+      }
+
+      const summary = result.questions
+        .map((q) => `${q.header}: ${result.answers[q.question] ?? "(no answer)"}`)
+        .join(" | ");
+      ctx.ui.notify(`Result: ${summary}`, "success");
+    },
+  });
 
   // ── ask_user_question tool — registered at load time ─────────────────────────
   pi.registerTool({
