@@ -3,10 +3,126 @@ import { Text } from "@mariozechner/pi-tui";
 import { InputSchema, type Question, type Result } from "./schema.ts";
 import { AskUserQuestionComponent } from "./component.ts";
 
+// ── Dev test fixtures ─────────────────────────────────────────────────────────
+
+const TEST_SCENARIOS: Record<string, Question[]> = {
+  single: [
+    {
+      question: "Which database should we use?",
+      header: "Database",
+      options: [
+        { label: "PostgreSQL" },
+        { label: "SQLite" },
+        { label: "DuckDB" },
+      ],
+      multiSelect: false,
+    },
+  ],
+  multi: [
+    {
+      question: "Which features should we implement?",
+      header: "Features",
+      options: [{ label: "Auth" }, { label: "Search" }, { label: "Export" }],
+      multiSelect: true,
+    },
+  ],
+  tabs: [
+    {
+      question: "Which database should we use?",
+      header: "Database",
+      options: [{ label: "PostgreSQL" }, { label: "SQLite" }],
+      multiSelect: false,
+    },
+    {
+      question: "Which features should we implement?",
+      header: "Features",
+      options: [{ label: "Auth" }, { label: "Search" }, { label: "Export" }],
+      multiSelect: true,
+    },
+    {
+      question: "What deployment target?",
+      header: "Deploy",
+      options: [{ label: "Docker" }, { label: "Bare metal" }, { label: "Serverless" }],
+      multiSelect: false,
+    },
+    {
+      question: "Which testing framework?",
+      header: "Testing",
+      options: [{ label: "Vitest" }, { label: "Jest" }, { label: "None" }],
+      multiSelect: false,
+    },
+  ],
+  desc: [
+    {
+      question: "Pick an approach",
+      header: "Approach",
+      options: [
+        {
+          label: "Microservices",
+          description:
+            "Decompose the application into small, independently deployable services that communicate over a network. Best for large teams and complex domains.",
+        },
+        {
+          label: "Monolith",
+          description:
+            "A single deployable unit containing all application logic. Simpler to develop and deploy, easier to debug and test.",
+        },
+        {
+          label: "Modular monolith",
+          description:
+            "A monolith with clear internal module boundaries. Combines operational simplicity with architectural clarity.",
+        },
+      ],
+      multiSelect: false,
+    },
+  ],
+};
+
 export default function (pi: ExtensionAPI) {
+  // ── Dev flag: --test-ask enables the /test-ask command ──────────────────────
+  pi.registerFlag("test-ask", {
+    description: "Enable /test-ask dev command for visual UI testing",
+    type: "boolean",
+    default: false,
+  });
+
   pi.on("session_start", async (_event, ctx) => {
     // Only register when there's an interactive UI — this tool requires user input
     if (!ctx.hasUI) return;
+
+    // ── /test-ask dev command (only when --test-ask flag is set) ──────────────
+    if (pi.getFlag("--test-ask")) {
+      pi.registerCommand("test-ask", {
+        description:
+          "Visual test for ask_user_question UI. Args: single | multi | tabs | desc",
+        handler: async (args, ctx) => {
+          const scenario = (args?.trim() || "single") as keyof typeof TEST_SCENARIOS;
+          const questions = TEST_SCENARIOS[scenario];
+          if (!questions) {
+            ctx.ui.notify(
+              `Unknown scenario "${scenario}". Use: single | multi | tabs | desc`,
+              "warning",
+            );
+            return;
+          }
+
+          const result = await ctx.ui.custom<Result | null>(
+            (tui, theme, _kb, done) =>
+              new AskUserQuestionComponent(questions, tui, theme, done),
+          );
+
+          if (result === null || result.cancelled) {
+            ctx.ui.notify("Cancelled", "info");
+            return;
+          }
+
+          const summary = result.questions
+            .map((q) => `${q.header}: ${result.answers[q.question] ?? "(no answer)"}`)
+            .join(" | ");
+          ctx.ui.notify(`Result: ${summary}`, "success");
+        },
+      });
+    }
 
     pi.registerTool({
       name: "ask_user_question",
