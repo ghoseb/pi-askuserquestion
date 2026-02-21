@@ -1,0 +1,23 @@
+{
+  "name": "pi-askuserquestion",
+  "version": "1.0.0",
+  "description": "AskUserQuestion tool for pi coding agent",
+  "type": "module",
+  "packageManager": "pnpm@10.30.1",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "vitest": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "*"
+  }
+}
