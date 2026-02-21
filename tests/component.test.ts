@@ -481,38 +481,38 @@ describe("handleInput — free-text mode", () => {
 describe("handleInput — multi-question tab navigation", () => {
   it("Tab advances from Q1 to Q2", () => {
     const c = make([singleSelect, multiSelectQ]);
-    c.handleInput(INPUT.tab);
+    c.handleInput(INPUT.right);
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Which features"))).toBe(true);
   });
 
   it("Tab from Q2 reaches Submit tab", () => {
     const c = make([singleSelect, multiSelectQ]);
-    c.handleInput(INPUT.tab); // Q2
-    c.handleInput(INPUT.tab); // Submit
+    c.handleInput(INPUT.right); // Q2
+    c.handleInput(INPUT.right); // Submit
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Ready to submit") || l.includes("Unanswered"))).toBe(true);
   });
 
   it("Shift+Tab retreats from Q2 to Q1", () => {
     const c = make([singleSelect, multiSelectQ]);
-    c.handleInput(INPUT.tab); // go to Q2
-    c.handleInput(INPUT.shiftTab); // back to Q1
+    c.handleInput(INPUT.right); // go to Q2
+    c.handleInput(INPUT.left); // back to Q1
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Which database"))).toBe(true);
   });
 
   it("Shift+Tab on Q1 wraps to Submit tab", () => {
     const c = make([singleSelect, multiSelectQ]);
-    c.handleInput(INPUT.shiftTab);
+    c.handleInput(INPUT.left);
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Ready to submit") || l.includes("Unanswered"))).toBe(true);
   });
 
   it("Tab on Submit tab wraps to Q1", () => {
     const c = make([singleSelect, multiSelectQ]);
-    c.handleInput(INPUT.shiftTab); // go to Submit
-    c.handleInput(INPUT.tab); // wrap back to Q1
+    c.handleInput(INPUT.left); // go to Submit
+    c.handleInput(INPUT.right); // wrap back to Q1
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("Which database"))).toBe(true);
   });
@@ -537,7 +537,7 @@ describe("handleInput — Submit tab", () => {
   it("Enter on Submit tab when not all confirmed is a no-op", () => {
     let called = false;
     const c = make([singleSelect, multiSelectQ], () => { called = true; });
-    c.handleInput(INPUT.shiftTab); // go to Submit tab
+    c.handleInput(INPUT.left); // go to Submit tab
     c.handleInput(INPUT.enter);
     expect(called).toBe(false);
   });
@@ -545,7 +545,7 @@ describe("handleInput — Submit tab", () => {
   it("Esc on Submit tab cancels", () => {
     let resolved: Result | null | undefined = undefined;
     const c = make([singleSelect, multiSelectQ], (r) => { resolved = r; });
-    c.handleInput(INPUT.shiftTab);
+    c.handleInput(INPUT.left);
     c.handleInput(INPUT.escape);
     expect(resolved).toBeNull();
   });
@@ -634,6 +634,50 @@ describe("full round-trip", () => {
   });
 });
 
+// ── multi-select + free-text combined ────────────────────────────────────────
+
+describe("multi-select + free-text combined", () => {
+  it("result combines checked labels and free-text", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ], (r) => { resolved = r; });
+    c.handleInput(INPUT.space); // select Auth (index 0)
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.enter); // enter edit mode
+    "mytext".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // confirm free-text + checkboxes
+    expect(resolved!.answers["Which features should we implement?"]).toBe("Auth, mytext");
+  });
+
+  it("Enter confirms when only free-text typed and no boxes checked", () => {
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ], (r) => { resolved = r; });
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.enter); // enter edit mode
+    "onlytext".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // confirm
+    expect(resolved!.answers["Which features should we implement?"]).toBe("onlytext");
+  });
+
+  it("Submit tab renders combined answer text", () => {
+    const c = make([multiSelectQ, twoOptionsQ]);
+    // Answer Q1: check Auth + type free-text
+    c.handleInput(INPUT.space); // select Auth
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down);
+    c.handleInput(INPUT.down); // cursor on Type something...
+    c.handleInput(INPUT.enter); // enter edit mode
+    "extra".split("").forEach((ch) => c.handleInput(ch));
+    c.handleInput(INPUT.enter); // confirm → advance to Q2
+    // Answer Q2
+    c.handleInput(INPUT.enter); // confirm → advance to Submit
+    // Now on Submit tab — render and check answer text
+    const lines = c.render(80);
+    expect(lines.some((l) => l.includes("Auth") && l.includes("extra"))).toBe(true);
+  });
+});
+
 // ── Edge cases ────────────────────────────────────────────────────────────────
 
 describe("edge cases", () => {
@@ -658,7 +702,7 @@ describe("edge cases", () => {
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.enter); // confirm Q1 (cursor on DuckDB), advance to Q2
     // Navigate back to Q1
-    c.handleInput(INPUT.shiftTab);
+    c.handleInput(INPUT.left);
     const lines = c.render(80);
     // Cursor should still be on DuckDB (index 2)
     expect(lines.some((l) => l.match(/^>\s+.*DuckDB/))).toBe(true);
@@ -679,7 +723,7 @@ describe("edge cases", () => {
     c.handleInput(INPUT.space); // select C (index 2)
     c.handleInput(INPUT.enter); // confirm, advance to Q2
     // Navigate back to Q1
-    c.handleInput(INPUT.shiftTab);
+    c.handleInput(INPUT.left);
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("[✓]") && l.includes("A"))).toBe(true);
     expect(lines.some((l) => l.includes("[✓]") && l.includes("C"))).toBe(true);

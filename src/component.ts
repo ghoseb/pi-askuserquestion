@@ -174,8 +174,7 @@ export class AskUserQuestionComponent implements Component {
       if (isActive) {
         styled = t.bg("selectedBg", t.fg("text", label));
       } else if (s.confirmed) {
-        const snippet = truncateToWidth(this.getAnswerText(this.questions[i], s) ?? "", 10);
-        styled = t.fg("success", ` ■${header} `) + t.fg("dim", `"${snippet}" `);
+        styled = t.fg("success", ` ■${header} `);
       } else {
         styled = t.fg("muted", ` □${header} `);
       }
@@ -273,7 +272,7 @@ export class AskUserQuestionComponent implements Component {
     } else if (this.isSingle) {
       add(t.fg("dim", " ↑↓ navigate · Enter select · Esc cancel"));
     } else {
-      add(t.fg("dim", " ←→/Tab switch tabs · ↑↓ navigate · Space toggle · Enter confirm · Esc cancel"));
+      add(t.fg("dim", " ←→ switch tabs · ↑↓ navigate · Space toggle · Enter confirm · Esc cancel"));
     }
   }
 
@@ -306,18 +305,21 @@ export class AskUserQuestionComponent implements Component {
       add(t.fg("warning", ` Unanswered: ${missing}`));
     }
     add("");
-    add(t.fg("dim", " ←→/Tab switch tabs · Esc cancel"));
+    add(t.fg("dim", " ←→ switch tabs · Esc cancel"));
   }
 
   private getAnswerText(q: Question, state: QuestionState): string | null {
     if (!state.confirmed) return null;
-    if (state.freeTextValue !== null) return state.freeTextValue;
     if (q.multiSelect) {
       const labels = [...state.selectedIndices]
         .sort((a, b) => a - b)
         .map((idx) => q.options[idx].label);
+      if (state.freeTextValue !== null) {
+        labels.push(state.freeTextValue);
+      }
       return labels.join(", ");
     }
+    if (state.freeTextValue !== null) return state.freeTextValue;
     return q.options[state.cursorIndex]?.label ?? null;
   }
 
@@ -408,13 +410,17 @@ export class AskUserQuestionComponent implements Component {
       const q = this.questions[i];
       const s = this.states[i];
       if (!s.confirmed) continue;
-      if (s.freeTextValue !== null) {
-        answers[q.question] = s.freeTextValue;
-      } else if (q.multiSelect) {
+      if (q.multiSelect) {
+        // Combine checked options + free-text (if any), in selection order
         const labels = [...s.selectedIndices]
           .sort((a, b) => a - b)
           .map((idx) => q.options[idx].label);
+        if (s.freeTextValue !== null) {
+          labels.push(s.freeTextValue);
+        }
         answers[q.question] = labels.join(", ");
+      } else if (s.freeTextValue !== null) {
+        answers[q.question] = s.freeTextValue;
       } else {
         answers[q.question] = q.options[s.cursorIndex].label;
       }
@@ -439,13 +445,13 @@ export class AskUserQuestionComponent implements Component {
         this.cancel();
         return;
       }
-      if (matchesKey(data, Key.tab) || matchesKey(data, Key.right)) {
+      if (matchesKey(data, Key.right)) {
         this.activeTab = 0;
         this.invalidate();
         this.tui.requestRender();
         return;
       }
-      if (matchesKey(data, Key.shift("tab")) || matchesKey(data, Key.left)) {
+      if (matchesKey(data, Key.left)) {
         this.activeTab = this.questions.length - 1;
         this.invalidate();
         this.tui.requestRender();
@@ -486,21 +492,17 @@ export class AskUserQuestionComponent implements Component {
       return;
     }
 
-    if (matchesKey(data, Key.tab) || (!this.isSingle && matchesKey(data, Key.right))) {
-      if (!this.isSingle) {
-        this.activeTab = (this.activeTab + 1) % this.totalTabs;
-        this.invalidate();
-        this.tui.requestRender();
-      }
+    if (!this.isSingle && matchesKey(data, Key.right)) {
+      this.activeTab = (this.activeTab + 1) % this.totalTabs;
+      this.invalidate();
+      this.tui.requestRender();
       return;
     }
 
-    if (matchesKey(data, Key.shift("tab")) || (!this.isSingle && matchesKey(data, Key.left))) {
-      if (!this.isSingle) {
-        this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
-        this.invalidate();
-        this.tui.requestRender();
-      }
+    if (!this.isSingle && matchesKey(data, Key.left)) {
+      this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
+      this.invalidate();
+      this.tui.requestRender();
       return;
     }
 
@@ -532,7 +534,7 @@ export class AskUserQuestionComponent implements Component {
         return;
       }
       if (matchesKey(data, Key.enter) && !onOther) {
-        if (state.selectedIndices.size > 0) {
+        if (state.selectedIndices.size > 0 || state.freeTextValue !== null) {
           this.confirmAndAdvance();
         }
         return;
