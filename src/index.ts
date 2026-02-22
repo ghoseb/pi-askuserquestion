@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Text, TruncatedText } from "@mariozechner/pi-tui";
+import { Box, TruncatedText } from "@mariozechner/pi-tui";
 import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type Question, type Result } from "./schema.ts";
 
@@ -86,17 +86,21 @@ Always use this tool instead of asking questions in plain text — it provides a
         return new TruncatedText(theme.fg("warning", "Cancelled"), 0, 0);
       }
 
-      const lines = details.questions.map((q) => {
+      // One TruncatedText per question — each line item truncated independently
+      const box = new Box(0, 0);
+      for (const q of details.questions) {
         const answer = details.answers[q.question] ?? "(no answer)";
-        return (
-          theme.fg("success", "✓ ") +
-          theme.fg("accent", `${q.header}: `) +
-          theme.fg("text", answer)
+        box.addChild(
+          new TruncatedText(
+            theme.fg("success", "✓ ") +
+              theme.fg("accent", `${q.header}: `) +
+              theme.fg("text", answer),
+            0,
+            0,
+          ),
         );
-      });
-
-      // Text (not TruncatedText) — multi-line content, one line per question
-      return new Text(lines.join("\n"), 0, 0);
+      }
+      return box;
     },
   });
 }
