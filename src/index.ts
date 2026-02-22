@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { TruncatedText } from "@mariozechner/pi-tui";
+import { Text, TruncatedText } from "@mariozechner/pi-tui";
 import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type Question, type Result } from "./schema.ts";
 
@@ -95,7 +95,8 @@ Always use this tool instead of asking questions in plain text — it provides a
         );
       });
 
-      return new TruncatedText(lines.join("\n"), 0, 0);
+      // Text (not TruncatedText) — multi-line content, one line per question
+      return new Text(lines.join("\n"), 0, 0);
     },
   });
 }
