@@ -68,7 +68,8 @@ Always use this tool instead of asking questions in plain text — it provides a
       }
 
       const summaryLines = result.questions.map(
-        (q) => `${q.header}: ${result.answers[q.question] ?? "(no answer)"}`,
+        (q) =>
+          `"${q.question}" = "${result.answers[q.question] ?? "(no answer)"}"`,
       );
 
       return {
