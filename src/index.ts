@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Box, TruncatedText } from "@mariozechner/pi-tui";
 import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type Question, type Result } from "./schema.ts";
+import { validateUniqueness } from "./validate.ts";
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
@@ -17,6 +18,19 @@ Always use this tool instead of asking questions in plain text — it provides a
     parameters: InputSchema,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      // Reject duplicate question texts or duplicate option labels
+      const validationError = validateUniqueness(params.questions);
+      if (validationError) {
+        return {
+          content: [{ type: "text", text: `Error: ${validationError}` }],
+          details: {
+            questions: params.questions,
+            answers: {},
+            cancelled: true,
+          } satisfies Result,
+        };
+      }
+
       if (!ctx.hasUI) {
         // Non-interactive session — deregister so the LLM won't try again
         pi.setActiveTools(
