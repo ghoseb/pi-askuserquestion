@@ -9,12 +9,17 @@ export default function (pi: ExtensionAPI) {
     name: "ask_user_question",
     label: "Ask User",
     description: `Ask the user 1–4 clarifying questions before proceeding.
-Use this tool when multiple valid approaches exist and you need the user's preference to continue.
-Each question must have 2–4 options for the user to choose from.
+Use this tool to:
+1. Clarify ambiguous instructions
+2. Get the user's preference between valid approaches
+3. Make decisions on implementation choices
+4. Offer choices about what direction to take
+Each question must have 2–4 options. Users can always select "Other" to type a free-text answer, so do not include an "Other" option yourself.
+Option labels should be concise (1–5 words).
 Set multiSelect: true when more than one option can validly apply at the same time.
 The header field is a short label (max 12 characters) used in the tab bar when showing multiple questions.
-Always use this tool instead of asking questions in plain text — it provides a structured, interactive UI.
-If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label.`,
+If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label.
+Always use this tool instead of asking questions in plain text — it provides a structured, interactive UI.`,
 
     parameters: InputSchema,
 
