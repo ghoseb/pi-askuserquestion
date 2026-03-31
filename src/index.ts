@@ -13,7 +13,8 @@ Use this tool when multiple valid approaches exist and you need the user's prefe
 Each question must have 2–4 options for the user to choose from.
 Set multiSelect: true when more than one option can validly apply at the same time.
 The header field is a short label (max 12 characters) used in the tab bar when showing multiple questions.
-Always use this tool instead of asking questions in plain text — it provides a structured, interactive UI.`,
+Always use this tool instead of asking questions in plain text — it provides a structured, interactive UI.
+If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label.`,
 
     parameters: InputSchema,
 
