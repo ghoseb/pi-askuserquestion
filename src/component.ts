@@ -9,6 +9,7 @@ import {
   truncateToWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+
 import type { Option, Question, Result } from "./schema.ts";
 
 // ── TUILike ───────────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export class AskUserQuestionComponent implements Component {
   private cachedLines?: string[];
 
   // Guard: prevent done() being called more than once
-  private _resolved: boolean = false;
+  private resolved: boolean = false;
 
   constructor(
     questions: Question[],
@@ -361,7 +362,7 @@ export class AskUserQuestionComponent implements Component {
     if (!state.confirmed) return null;
     if (q.multiSelect) {
       const labels = [...state.selectedIndices]
-        .sort((a, b) => a - b)
+        .toSorted((a, b) => a - b)
         .map((idx) => q.options[idx].label);
       if (state.freeTextValue !== null) labels.push(state.freeTextValue);
       return labels.join(", ");
@@ -461,12 +462,12 @@ export class AskUserQuestionComponent implements Component {
   }
 
   private submit(): void {
-    this._resolved = true;
+    this.resolved = true;
     this.done(this.buildResult());
   }
 
   private cancel(): void {
-    this._resolved = true;
+    this.resolved = true;
     this.done(null);
   }
 
@@ -478,7 +479,7 @@ export class AskUserQuestionComponent implements Component {
       if (!s.confirmed) continue;
       if (q.multiSelect) {
         const labels = [...s.selectedIndices]
-          .sort((a, b) => a - b)
+          .toSorted((a, b) => a - b)
           .map((idx) => q.options[idx].label);
         if (s.freeTextValue !== null) labels.push(s.freeTextValue);
         answers[q.question] = labels.join(", ");
@@ -495,7 +496,7 @@ export class AskUserQuestionComponent implements Component {
 
   handleInput(data: string): void {
     // Guard: once done has been called, ignore all further input
-    if (this._resolved) return;
+    if (this.resolved) return;
 
     // ── Submit tab ─────────────────────────────────────────────────────────────
     // Check Submit tab FIRST — states[activeTab] is undefined when on Submit tab

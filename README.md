@@ -134,7 +134,8 @@ tests/
 pnpm install
 pnpm test          # run tests
 pnpm coverage      # coverage report
-pnpm check         # biome lint/format + jscpd dupe check + knip dead code
+pnpm check         # oxlint + oxfmt check + jscpd dupe check + knip dead code
+pnpm fmt           # format with oxfmt
 ```
 
 Load with pi for live testing:

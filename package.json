@@ -3,32 +3,38 @@
   "version": "1.0.0",
   "description": "AskUserQuestion tool for pi coding agent",
   "type": "module",
-  "packageManager": "pnpm@10.30.1",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage.enabled --coverage.provider=istanbul",
-    "check": "pnpm check:biome && pnpm check:dupes && pnpm check:knip",
-    "check:biome": "biome check --error-on-warnings src/ tests/",
+    "check": "pnpm check:lint && pnpm check:fmt && pnpm check:dupes && pnpm check:knip",
+    "check:lint": "oxlint --deny-warnings src/ tests/",
+    "check:fmt": "oxfmt --check",
+    "fmt": "oxfmt",
     "check:dupes": "jscpd src/ --min-lines 8 --min-tokens 50 --reporters console",
     "check:knip": "knip"
   },
-  "pi": {
-    "extensions": [
-      "./src/index.ts"
-    ]
-  },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
-    "@types/node": "^22.0.0",
-    "@vitest/coverage-istanbul": "3.2.4",
-    "jscpd": "^4.0.8",
-    "knip": "^5.85.0",
-    "vitest": "^3.0.0"
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-istanbul": "5.1.0",
+    "jscpd": "^5.4.3",
+    "knip": "^6.45.0",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
+    "vitest": "^5.1.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.30.1",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }

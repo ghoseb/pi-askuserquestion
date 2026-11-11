@@ -2,6 +2,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
+
 import { AskUserQuestionComponent, type TUILike } from "../src/component.ts";
 import {
   InputSchema,
@@ -96,11 +97,30 @@ function make(
   );
 }
 
+/** Single-select question with two options, numbered for bulk fixtures */
+function numberedQuestion(n: number): Question {
+  return {
+    question: `Question ${n}`,
+    header: `Q${n}`,
+    options: [{ label: `Opt${n}A` }, { label: `Opt${n}B` }],
+    multiSelect: false,
+  };
+}
+
+/** Answer the 4 fuzz questions with defaults and reach Submit */
+function answerAll(c: AskUserQuestionComponent) {
+  c.handleInput(INPUT.enter); // Q1: Node
+  c.handleInput(INPUT.space);
+  c.handleInput(INPUT.enter); // Q2: Postgres
+  c.handleInput(INPUT.enter); // Q3: AWS
+  c.handleInput(INPUT.enter); // Q4: GitHub Actions → Submit
+}
+
 /** Strip ANSI escape codes from a string */
 function stripAnsi(s: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching ESC sequences
+  // oxlint-disable-next-line no-control-regex -- intentionally matching ESC sequences
   const noSgr = s.replace(/\u001b\[[0-9;]*m/g, "");
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching ESC sequences
+  // oxlint-disable-next-line no-control-regex -- intentionally matching ESC sequences
   return noSgr.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
 }
 
@@ -762,13 +782,7 @@ describe("full round-trip", () => {
   });
 
   it("four questions — all answered", () => {
-    const q = (n: number): Question => ({
-      question: `Question ${n}`,
-      header: `Q${n}`,
-      options: [{ label: `Opt${n}A` }, { label: `Opt${n}B` }],
-      multiSelect: false,
-    });
-    const questions = [q(1), q(2), q(3), q(4)];
+    const questions = [1, 2, 3, 4].map(numberedQuestion);
     let resolved: Result | null = null;
     const c = make(questions, (r) => {
       resolved = r;
@@ -1187,15 +1201,6 @@ describe("fuzz — tab view", () => {
   };
   const qs = [q1, q2, q3, q4];
 
-  // Helper: answer all 4 questions with defaults and reach Submit
-  function answerAll(c: AskUserQuestionComponent) {
-    c.handleInput(INPUT.enter); // Q1: Node
-    c.handleInput(INPUT.space);
-    c.handleInput(INPUT.enter); // Q2: Postgres
-    c.handleInput(INPUT.enter); // Q3: AWS
-    c.handleInput(INPUT.enter); // Q4: GitHub Actions → Submit
-  }
-
   it("fuzz-01: answer all in order, submit — all answers present", () => {
     let resolved: Result | null = null;
     const c = make(qs, (r) => {
@@ -1421,10 +1426,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-15: open free-text editor on Q2, type, Esc (discard), checkbox still works", () => {
-    let _resolved: Result | null = null;
-    const c = make(qs, (r) => {
-      _resolved = r;
-    });
+    const c = make(qs);
     c.handleInput(INPUT.right); // Q2
     c.handleInput(INPUT.down);
     c.handleInput(INPUT.down);
