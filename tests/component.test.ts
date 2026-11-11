@@ -539,6 +539,28 @@ describe("handleInput — free-text mode", () => {
     expect(lines.some((l) => l.includes("hello"))).toBe(false);
   });
 
+  it("multi-select: Esc in editor keeps previously saved free-text", () => {
+    // Regression: Esc used to wipe saved free-text on unconfirmed multi-select
+    // questions (saving free-text does not confirm multi-select).
+    let resolved: Result | null = null;
+    const c = make([multiSelectQ], (r) => {
+      resolved = r;
+    });
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space); // open editor
+    for (const ch of "hello") c.handleInput(ch);
+    c.handleInput(INPUT.enter); // save, back to options
+    c.handleInput(INPUT.space); // re-open editor
+    c.handleInput(INPUT.escape); // discard edits
+    c.handleInput(INPUT.enter); // confirm
+    expect(resolved).not.toBeNull();
+    expect(
+      (resolved as Result | null)?.answers[
+        "Which features should we implement?"
+      ],
+    ).toBe("hello");
+  });
+
   it("single-select: clearing previously confirmed free-text un-confirms the question", () => {
     // Regression: clearing free-text in single-select used to leave confirmed=true
     // with no answer, so Submit would proceed with a missing answer.

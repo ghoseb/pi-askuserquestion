@@ -4,9 +4,26 @@ import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type Question, type Result } from "./schema.ts";
 import { validateUniqueness } from "./validate.ts";
 
+const TOOL_NAME = "ask_user_question";
+
+function cancelledResult(questions: Question[]) {
+  return {
+    content: [{ type: "text" as const, text: "User cancelled" }],
+    details: { questions, answers: {}, cancelled: true } satisfies Result,
+  };
+}
+
 export default function (pi: ExtensionAPI) {
+  // Deactivate the tool for this session so the LLM won't retry, then fail.
+  function disableTool(): never {
+    pi.setActiveTools(pi.getActiveTools().filter((name) => name !== TOOL_NAME));
+    throw new Error(
+      `${TOOL_NAME} requires an interactive terminal session. The tool has been disabled for this session.`,
+    );
+  }
+
   pi.registerTool({
-    name: "ask_user_question",
+    name: TOOL_NAME,
     label: "Ask User",
     description: `Ask the user 1–4 clarifying questions before proceeding.
 Use this tool to:
@@ -23,54 +40,50 @@ Always use this tool instead of asking questions in plain text — it provides a
 
     parameters: InputSchema,
 
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      // Reject duplicate question texts or duplicate option labels
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      // Reject duplicate question texts or duplicate option labels.
+      // Throwing marks the tool result as an error for the LLM.
       const validationError = validateUniqueness(params.questions);
       if (validationError) {
-        return {
-          content: [{ type: "text", text: `Error: ${validationError}` }],
-          details: {
-            questions: params.questions,
-            answers: {},
-            cancelled: true,
-          } satisfies Result,
-        };
+        throw new Error(validationError);
       }
 
       if (!ctx.hasUI) {
-        // Non-interactive session — deregister so the LLM won't try again
-        pi.setActiveTools(
-          pi.getActiveTools().filter((name) => name !== "ask_user_question"),
-        );
-        return {
-          content: [
-            {
-              type: "text",
-              text: "Error: ask_user_question requires an interactive session. The tool has been disabled for this session.",
-            },
-          ],
-          details: {
-            questions: params.questions,
-            answers: {},
-            cancelled: true,
-          } satisfies Result,
-        };
+        disableTool();
       }
 
-      const result = await ctx.ui.custom<Result | null>(
-        (tui, theme, _kb, done) =>
-          new AskUserQuestionComponent(params.questions, tui, theme, done),
-      );
+      if (signal?.aborted) {
+        return cancelledResult(params.questions);
+      }
+
+      // custom() returns undefined when no terminal is available (e.g. RPC mode,
+      // where hasUI is true but component factories are ignored).
+      const result: Result | null | undefined =
+        await ctx.ui.custom<Result | null>((tui, theme, _kb, done) => {
+          // Close the dialog if the agent run is aborted while it is open.
+          let finished = false;
+          const finish = (r: Result | null) => {
+            if (finished) return;
+            finished = true;
+            signal?.removeEventListener("abort", onAbort);
+            done(r);
+          };
+          const onAbort = () => finish(null);
+          signal?.addEventListener("abort", onAbort, { once: true });
+          return new AskUserQuestionComponent(
+            params.questions,
+            tui,
+            theme,
+            finish,
+          );
+        });
+
+      if (result === undefined) {
+        disableTool();
+      }
 
       if (result === null || result.cancelled) {
-        return {
-          content: [{ type: "text", text: "User cancelled" }],
-          details: {
-            questions: params.questions,
-            answers: {},
-            cancelled: true,
-          } satisfies Result,
-        };
+        return cancelledResult(params.questions);
       }
 
       const summaryLines = result.questions.map(
@@ -85,8 +98,12 @@ Always use this tool instead of asking questions in plain text — it provides a
     },
 
     renderCall(args, theme) {
-      const questions = (args.questions ?? []) as Question[];
-      const topics = questions.map((q) => q.header).join(", ");
+      // Args may be partial while the tool call is streaming.
+      const questions = (args.questions ?? []) as Partial<Question>[];
+      const topics = questions
+        .map((q) => q?.header)
+        .filter((h): h is string => typeof h === "string" && h.length > 0)
+        .join(", ");
       return new TruncatedText(
         theme.fg("toolTitle", theme.bold("ask user ")) +
           theme.fg("muted", topics),

@@ -174,11 +174,12 @@ export class AskUserQuestionComponent implements Component {
       const isActive = i === this.activeTab;
       // Truncate header to 12 chars
       const header = truncateToWidth(q.header, 12);
-      const label = ` ${header} `;
 
       let styled: string;
       if (isActive) {
-        styled = t.bg("selectedBg", t.fg("text", label));
+        // Same width as inactive tabs; keep the confirmed marker visible.
+        const mark = s.confirmed ? "■" : " ";
+        styled = t.bg("selectedBg", t.fg("text", ` ${mark}${header} `));
       } else if (s.confirmed) {
         styled = t.fg("success", ` ■${header} `);
       } else {
@@ -416,13 +417,9 @@ export class AskUserQuestionComponent implements Component {
       state.freeTextValue = this.editor.getText().trim();
       // Free-text replaces any prior regular-option selection — clear the ✓ indicator
       state.selectedIndex = null;
-    } else {
-      // Discard typed text — clear freeTextValue only if it was never confirmed
-      // (if confirmed, freeTextValue holds the answer — don't touch it)
-      if (!state.confirmed) {
-        state.freeTextValue = null;
-      }
     }
+    // On discard, keep freeTextValue as-is: it holds the last *saved* answer
+    // (edits live only in the editor buffer until saved).
     this.editor.setText("");
     state.inEditMode = false;
     this.invalidate();
