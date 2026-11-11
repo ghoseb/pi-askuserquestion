@@ -33,7 +33,7 @@ Heavily inspired by the [`AskUserQuestion`](https://platform.claude.com/docs/en/
 ## Install
 
 ```bash
-pi install npm:pi-askuserquestion
+pi install npm:@ghoseb/pi-askuserquestion
 ```
 
 Or from git:
