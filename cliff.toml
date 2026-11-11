@@ -1,0 +1,51 @@
+# git-cliff config — https://git-cliff.org/docs/configuration
+# Headings use "## [x.y.z] - YYYY-MM-DD", the format pi matches when it shows
+# package changelogs after an update.
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented in this file."""
+body = """
+
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+
+{% for commit in commits %}\
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}
+{% endfor %}\
+{% endfor %}\
+"""
+footer = ""
+trim = false
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { message = "^refactor", group = "<!-- 3 -->Refactor" },
+  { message = "^docs", group = "<!-- 4 -->Documentation" },
+  { message = "^test", group = "<!-- 5 -->Tests" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^(chore|ci|build)", group = "<!-- 6 -->Maintenance" },
+]
+
+[bump]
+# First release when no tags exist yet (matches package.json version).
+initial_tag = "v1.0.0"
+features_always_bump_minor = true
+breaking_always_bump_major = true

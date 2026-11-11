@@ -1,23 +1,51 @@
 {
   "name": "pi-askuserquestion",
   "version": "1.0.0",
-  "description": "AskUserQuestion tool for pi coding agent",
+  "description": "Pi coding agent extension: an ask_user_question tool that lets the LLM ask 1-4 multiple-choice clarifying questions in an interactive TUI",
+  "keywords": [
+    "ask-user",
+    "pi",
+    "pi-coding-agent",
+    "pi-extension",
+    "pi-package",
+    "tui"
+  ],
+  "homepage": "https://github.com/ghoseb/pi-askuserquestion#readme",
+  "bugs": {
+    "url": "https://github.com/ghoseb/pi-askuserquestion/issues"
+  },
+  "license": "MIT",
+  "author": "Baishampayan Ghose",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ghoseb/pi-askuserquestion.git"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage.enabled --coverage.provider=istanbul",
     "check": "pnpm check:types && pnpm check:lint && pnpm check:fmt && pnpm check:dupes && pnpm check:knip",
-    "check:lint": "oxlint --deny-warnings src/ tests/",
+    "check:lint": "oxlint --deny-warnings src/ tests/ scripts/",
     "check:fmt": "oxfmt --check",
     "fmt": "oxfmt",
     "check:dupes": "jscpd src/ --min-lines 8 --min-tokens 50 --reporters console",
     "check:knip": "knip",
-    "check:types": "tsc -p ."
+    "check:types": "tsc -p .",
+    "prepublishOnly": "pnpm check && pnpm test",
+    "changelog": "git-cliff --unreleased",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@vitest/coverage-istanbul": "5.1.0",
+    "git-cliff": "^2.14.2",
     "jscpd": "^5.4.3",
     "knip": "^6.45.0",
     "oxfmt": "^0.78.0",
