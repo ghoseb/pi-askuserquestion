@@ -1,6 +1,6 @@
 {
   "name": "@ghoseb/pi-askuserquestion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Pi coding agent extension: an ask_user_question tool that lets the LLM ask 1-4 multiple-choice clarifying questions in an interactive TUI",
   "keywords": [
     "ask-user",
