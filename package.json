@@ -7,12 +7,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage.enabled --coverage.provider=istanbul",
-    "check": "pnpm check:lint && pnpm check:fmt && pnpm check:dupes && pnpm check:knip",
+    "check": "pnpm check:types && pnpm check:lint && pnpm check:fmt && pnpm check:dupes && pnpm check:knip",
     "check:lint": "oxlint --deny-warnings src/ tests/",
     "check:fmt": "oxfmt --check",
     "fmt": "oxfmt",
     "check:dupes": "jscpd src/ --min-lines 8 --min-tokens 50 --reporters console",
-    "check:knip": "knip"
+    "check:knip": "knip",
+    "check:types": "tsc -p ."
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
@@ -21,6 +22,7 @@
     "knip": "^6.45.0",
     "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
+    "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   },
   "peerDependencies": {

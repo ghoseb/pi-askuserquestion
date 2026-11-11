@@ -293,7 +293,7 @@ describe("handleInput — cursor navigation", () => {
 
 describe("handleInput — single-select confirm", () => {
   it("resolves with first option on immediate Enter", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -306,7 +306,7 @@ describe("handleInput — single-select confirm", () => {
   });
 
   it("resolves with second option after ↓ Enter", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -316,7 +316,7 @@ describe("handleInput — single-select confirm", () => {
   });
 
   it("result has cancelled: false", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -325,7 +325,7 @@ describe("handleInput — single-select confirm", () => {
   });
 
   it("result answers keyed by full question text, not header", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -337,7 +337,7 @@ describe("handleInput — single-select confirm", () => {
   });
 
   it("result has correct questions pass-through", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -449,7 +449,7 @@ describe("handleInput — multi-select", () => {
   });
 
   it("Enter with something selected confirms", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -462,7 +462,7 @@ describe("handleInput — multi-select", () => {
   });
 
   it("Enter after selecting options 1 and 3 resolves with joined labels sorted by index", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -477,7 +477,7 @@ describe("handleInput — multi-select", () => {
   });
 
   it("result has cancelled: false", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -487,7 +487,7 @@ describe("handleInput — multi-select", () => {
   });
 
   it("result answers keyed by full question text", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -562,7 +562,7 @@ describe("handleInput — free-text mode", () => {
   it("multi-select: Esc in editor keeps previously saved free-text", () => {
     // Regression: Esc used to wipe saved free-text on unconfirmed multi-select
     // questions (saving free-text does not confirm multi-select).
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -574,17 +574,15 @@ describe("handleInput — free-text mode", () => {
     c.handleInput(INPUT.escape); // discard edits
     c.handleInput(INPUT.enter); // confirm
     expect(resolved).not.toBeNull();
-    expect(
-      (resolved as Result | null)?.answers[
-        "Which features should we implement?"
-      ],
-    ).toBe("hello");
+    expect(resolved?.answers["Which features should we implement?"]).toBe(
+      "hello",
+    );
   });
 
   it("single-select: clearing previously confirmed free-text un-confirms the question", () => {
     // Regression: clearing free-text in single-select used to leave confirmed=true
     // with no answer, so Submit would proceed with a missing answer.
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect, twoOptionsQ], (r) => {
       resolved = r;
     });
@@ -628,7 +626,7 @@ describe("handleInput — free-text mode", () => {
   });
 
   it("typing then Enter confirms with typed text", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -733,7 +731,7 @@ describe("handleInput — Submit tab", () => {
   });
 
   it("Enter on Submit tab when all confirmed resolves", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect, multiSelectQ], (r) => {
       resolved = r;
     });
@@ -753,7 +751,7 @@ describe("handleInput — Submit tab", () => {
 
 describe("full round-trip", () => {
   it("two questions — correct answers and structure", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect, multiSelectQ], (r) => {
       resolved = r;
     });
@@ -783,7 +781,7 @@ describe("full round-trip", () => {
 
   it("four questions — all answered", () => {
     const questions = [1, 2, 3, 4].map(numberedQuestion);
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(questions, (r) => {
       resolved = r;
     });
@@ -796,12 +794,12 @@ describe("full round-trip", () => {
     c.handleInput(INPUT.enter); // Submit
 
     expect(resolved?.questions).toHaveLength(4);
-    expect(Object.keys(resolved?.answers)).toHaveLength(4);
+    expect(Object.keys(resolved?.answers ?? {})).toHaveLength(4);
     expect(resolved?.cancelled).toBe(false);
   });
 
   it("single question confirms immediately without Submit tab", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -829,7 +827,7 @@ describe("full round-trip", () => {
 
 describe("multi-select + free-text combined", () => {
   it("result combines checked labels and free-text", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -849,7 +847,7 @@ describe("multi-select + free-text combined", () => {
   });
 
   it("Enter on Type your own answer... with saved free-text confirms immediately", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -866,7 +864,7 @@ describe("multi-select + free-text combined", () => {
   });
 
   it("Enter confirms when only free-text typed and no boxes checked", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ], (r) => {
       resolved = r;
     });
@@ -908,7 +906,7 @@ describe("multi-select + free-text combined", () => {
 
 describe("auto-confirm on → navigation", () => {
   it("multi-select: navigating → with selections auto-confirms the question", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ, twoOptionsQ], (r) => {
       resolved = r;
     });
@@ -925,7 +923,7 @@ describe("auto-confirm on → navigation", () => {
   });
 
   it("multi-select: navigating → with nothing selected does NOT auto-confirm", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ, twoOptionsQ], (r) => {
       resolved = r;
     });
@@ -936,7 +934,7 @@ describe("auto-confirm on → navigation", () => {
   });
 
   it("single-select: navigating → without explicit Enter does NOT auto-confirm", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect, twoOptionsQ], (r) => {
       resolved = r;
     });
@@ -953,7 +951,7 @@ describe("auto-confirm on → navigation", () => {
 
 describe("multi-select: un-confirm when all answers removed", () => {
   it("deselecting all checkboxes resets confirmed — Submit blocks", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ, twoOptionsQ], (r) => {
       resolved = r;
     });
@@ -969,7 +967,7 @@ describe("multi-select: un-confirm when all answers removed", () => {
   });
 
   it("clearing free-text with no checkboxes resets confirmed — Submit blocks", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([multiSelectQ, twoOptionsQ], (r) => {
       resolved = r;
     });
@@ -996,7 +994,7 @@ describe("multi-select: un-confirm when all answers removed", () => {
 
 describe("single-select: free-text then pick regular option", () => {
   it("selecting a regular option after free-text typed uses the option label", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -1047,7 +1045,7 @@ describe("single-select: free-text then pick regular option", () => {
   });
 
   it("navigating back and selecting a regular option clears free-text", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     // Use two questions so Q1 doesn't resolve immediately
     const c = make([singleSelect, twoOptionsQ], (r) => {
       resolved = r;
@@ -1128,7 +1126,7 @@ describe("edge cases", () => {
   });
 
   it("free-text Esc then selecting option uses option label, not typed text", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make([singleSelect], (r) => {
       resolved = r;
     });
@@ -1202,7 +1200,7 @@ describe("fuzz — tab view", () => {
   const qs = [q1, q2, q3, q4];
 
   it("fuzz-01: answer all in order, submit — all answers present", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1210,11 +1208,11 @@ describe("fuzz — tab view", () => {
     c.handleInput(INPUT.enter); // submit
     expect(resolved).not.toBeNull();
     expect(resolved?.cancelled).toBe(false);
-    expect(Object.keys(resolved?.answers)).toHaveLength(4);
+    expect(Object.keys(resolved?.answers ?? {})).toHaveLength(4);
   });
 
   it("fuzz-02: skip Q1, answer Q2–Q4, Submit blocks, go back, answer Q1, submit works", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1239,7 +1237,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-03: answer Q1, change mind by navigating back and re-answering", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1298,7 +1296,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-08: multi-select — toggle all options on then off, confirm blocked", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1321,7 +1319,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-09: multi-select with free-text + checkbox combined, navigate away and back, answers preserved", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1353,7 +1351,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-10: free-text on single-select, then change mind to option — free-text cleared", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1391,7 +1389,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-13: answer Q1 via → auto-confirm, deselect in Q2 then re-select, verify Submit reflects latest", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1408,7 +1406,7 @@ describe("fuzz — tab view", () => {
   });
 
   it("fuzz-14: answer all, navigate back to Q2, clear all checkboxes — Submit blocks", () => {
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1471,7 +1469,7 @@ describe("fuzz — tab view", () => {
   it("fuzz-18: mix of → auto-confirm (multi-select) and Enter (single-select)", () => {
     // → only auto-confirms multi-select (has selectedIndices) or single-select with freeText.
     // Single-select requires explicit Enter to set selectedIndex.
-    let resolved: Result | null = null;
+    let resolved = null as Result | null;
     const c = make(qs, (r) => {
       resolved = r;
     });
@@ -1551,13 +1549,17 @@ describe("coverage — schema.ts", () => {
     expect(QuestionSchema.properties.header).toBeDefined();
     expect(QuestionSchema.properties.options).toBeDefined();
     expect(QuestionSchema.properties.multiSelect).toBeDefined();
-    expect(QuestionSchema.properties.options.minItems).toBe(2);
-    expect(QuestionSchema.properties.options.maxItems).toBe(4);
+    expect(QuestionSchema.properties.options).toMatchObject({
+      minItems: 2,
+      maxItems: 4,
+    });
   });
 
   it("InputSchema constrains questions to 1–4", () => {
-    expect(InputSchema.properties.questions.minItems).toBe(1);
-    expect(InputSchema.properties.questions.maxItems).toBe(4);
+    expect(InputSchema.properties.questions).toMatchObject({
+      minItems: 1,
+      maxItems: 4,
+    });
   });
 
   it("ResultSchema has questions, answers, cancelled", () => {
